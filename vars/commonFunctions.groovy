@@ -56,8 +56,8 @@ def getVulnerabilityResult(trivyOutput) {
     return vulnerabilityCounts
 }
 
-def getEurekaFQDN() {
-    return "http://eureka:18080"
+def getEurekaServiceUrl() {
+    return "http://eureka:18080/eureka/"
 }
 
 def getConfigFQDN() {
