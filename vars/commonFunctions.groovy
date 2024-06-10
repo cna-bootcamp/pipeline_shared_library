@@ -34,3 +34,22 @@ def getTimestamp() {
     return timestamp
 }
 
+def getVulnerabilityResult(trivyOutput) {
+    def vulnerabilityCounts = [:]
+    def totalLine = trivyOutput.readLines().find { it.startsWith("Total:") }
+    if (totalLine) {
+        def countsPart = (totalLine =~ /\((.+)\)/)[0][1]
+        countsPart.split(",").each { part ->
+            def (severity, count) = part.trim().split(":")
+            vulnerabilityCounts[severity] = count.trim().toInteger()
+        }
+    }
+    
+    echo "Vulnerability counts:"
+    vulnerabilityCounts.each { severity, count ->
+        echo "${severity}: ${count}"
+    }
+
+    return vulnerabilityCounts
+}
+
