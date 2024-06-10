@@ -60,3 +60,7 @@ def getEurekaFQDN() {
     return "http://eureka:18080"
 }
 
+def getConfigFQDN() {
+    return "http://config:18080"
+}
+
