@@ -11,10 +11,10 @@ def checkChangesInDirectory(String directory) {
         for (int j = 0; j < entries.length; j++) {
             def entry = entries[j]
             def files = entry.affectedFiles
-            echo "*** Affected files count: " + files.size()
+            //echo "*** Affected files count: " + files.size()
             for (int k = 0; k < files.size(); k++) {
                 def file = files[k]
-                echo "*** Affected file: " + file.path
+                //echo "*** Affected file: " + file.path
                 if (file.path.startsWith("${directory}/")) {
                     hasChangesInDirectory = true
                     break
@@ -37,6 +37,7 @@ def getTimestamp() {
 def getVulnerabilityResult(trivyOutput) {
     def vulnerabilityCounts = [:]
     def totalLine = trivyOutput.readLines().find { it.startsWith("Total:") }
+    echo "Vulnerability: ${totalLine}"
     if (totalLine) {
         def countsPart = (totalLine =~ /\((.+)\)/)[0][1]
         countsPart.split(",").each { part ->
@@ -45,11 +46,13 @@ def getVulnerabilityResult(trivyOutput) {
         }
     }
     
+    /*
     echo "Vulnerability counts:"
     vulnerabilityCounts.each { severity, count ->
         echo "${severity}: ${count}"
     }
-
+    */
+    
     return vulnerabilityCounts
 }
 
