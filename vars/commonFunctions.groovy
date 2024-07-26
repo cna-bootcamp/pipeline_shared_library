@@ -1,23 +1,37 @@
 //-- Pipeline 전역 변수 셋팅  
-def setGlobalVariables(String serviceGroup) {
+def setGlobalVariables(String serviceGroup, String serviceId, String version) {
     env.SERVICE_GROUP=serviceGroup
-    env.NFS_HOST=43.200.12.214
+    env.SERVICE_ID = serviceId
+    env.SERVICE_VERSION = version 
+
     env.NFS_DIR=data
     env.NFS_CREDENTIAL=jenkins-nfs-ssh
+
     env.GRADLE_CACHE_DIR=gradle
     env.TRIVY_CACHE_DIR=trivy-cache
     env.IMAGE_REG_PULL_SECRET=dockerhub
     env.IMAGE_PULL_POLICY=Always
-    env.IMAGE_REG_CREDENTIAL=credential_cna_ondal
     env.BUILD_LIB_DIR=build/libs
-    env.IMAGE_REG_HOST=docker.io
-    env.IMAGE_REG_ORG=hiondal
     env.JAVA_BINARY_DIR=build/classes/java/main
-    env.SONAR_SERVER_ID=SonarQube
-    
+    env.SONAR_SERVER_ID=SonarQube   //이 이름으로 Jenkins 시스템 설정의 SonarQube servers에 등록되어 있어야 함
+
     env.SERVICE_GROUP_SC = "sc"
     env.SERVICE_GROUP_SUBRIDE = "subride"
     env.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"
+
+    env.SRC_DIR = getSourceDir()
+    if (env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
+        env.SUB_DIR_BIZ = env.SRC_DIR+"-biz"
+        env.SIB_DIR_INFRA = env.SRC_DIR+"-infra"
+    }
+
+    env.PIPELINE_ID = "${SRC_DIR}-${env.BUILD_NUMBER}"
+
+    //-- 상황에 맞게 변경 필요  
+    env.NFS_HOST=43.200.12.214
+    env.IMAGE_REG_CREDENTIAL=credential_cna_ondal
+    env.IMAGE_REG_HOST=docker.io
+    env.IMAGE_REG_ORG=hiondal
 }
 
 //-- 서비스의 소스 디렉토리 리턴  
@@ -29,7 +43,7 @@ def getSourceDir() {
         // 추가적인 serviceId와 소스 디렉토리 매핑을 여기에 추가
     ]
     
-    return sourceDirMap.getOrDefault(env.SERVICE_GROUP, env.SERVICE_GROUP)
+    return sourceDirMap.getOrDefault(env.SERVICE_ID, env.SERVICE_ID)
 }
 
 //-- 실행환경 준비  
@@ -115,25 +129,40 @@ def checkSourceChanges() {
         }
     }
 
-    return hasChangesInDirectory
+    if (!hasChangesInDirectory) {
+        echo "No changes in <${SRC_DIR}> directory. Skipping pipeline."
+        currentBuild.result = 'STOP'
+        //commonFunctions.notifySlack("SKIPPED", "#00FF00")
+        return false
+    }
+
+    return true
 }
 
 def setCICDVariables() {
-    notifySlack("STARTED", "#FFFF00")
-
-    env.baseDir = "${SRC_DIR}/${SUB_DIR}/deployment"
+    env.baseDir = getBaseDir()
     def props = readProperties  file:"${baseDir}/deploy_env_vars"
     env.applicationName = props["application_name"]
     env.artifactoryFile = props["artifactory_file"]
-    env.tag = getTimestamp()
+    env.tag = getImageTag()
     env.namespace = props["namespace"]
     env.manifest = props["manifest"]
     env.imageScanSeverity = props["image_scan_severity"]
     env.sonarProjectKey = props["sonar_project_key"]
     env.imagePath = "${IMAGE_REG_HOST}/${IMAGE_REG_ORG}/${applicationName}"
+
+    //-- 상황에 맞게 변경 필요 
     env.eurekaServiceUrl = "http://eureka:18080/eureka/"
     if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE) {
         env.configServerFQDN = "http://config:18080"
+    }
+}
+
+def getBaseDir() {
+    if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE) {
+        return "${SRC_DIR}/${SUB_DIR_INFRA}/deployment"
+    } else {
+        return "${SRC_DIR}/deployment"    
     }
 }
 
@@ -142,7 +171,7 @@ def stageBuildJar() {
     stage("Build Jar") {
         container("gradle") {
             sh 'echo "Build jar under build directory"'
-            sh "gradle :${SRC_DIR}:${SUB_DIR}:build -x test"
+            sh "gradle :${SRC_DIR}:${SUB_DIR_INFRA}:build -x test"
         }
     }    
 }
@@ -161,6 +190,8 @@ def stageBuildScripts() {
 
 //-- SonarQube를 이용한 소스 검사(Java) 
 def stageSonarQubeAnalysisForJava() {
+    def javaBinaries = getJavaBinaries()
+
     stage("SonarQube Analysis") {
         container("gradle") {
             withSonarQubeEnv("${SONAR_SERVER_ID}") {
@@ -168,10 +199,17 @@ def stageSonarQubeAnalysisForJava() {
                     gradle :${applicationName}:sonar \
                         -Dsonar.projectName=${sonarProjectKey} \
                         -Dsonar.projectKey=${sonarProjectKey} \
-                        -Dsonar.java.binaries=${SUB_DIR}/build/classes/java/main,${SUB_DIR_BIZ}/build/classes/java/main
+                        -Dsonar.java.binaries=${javaBinaries}
                 """
             }
         }    
+}
+def getJavaBinaries() {
+    if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE) {
+        return "${SUB_DIR_INFRA}/build/classes/java/main,${SUB_DIR_BIZ}/build/classes/java/main"
+    } else {
+        return "build/classes/java/main"
+    }
 }
 
 //-- SonarQube를 이용한 소스 검사(Scripts) 
@@ -205,29 +243,29 @@ def stageVerifyQualityGate() {
 
 //-- Build Container image for Java
 def stageBuildContainerImageForJava() {
+    def buildDir = getBuildDir()
     stage("Build Container image") {
         container("podman") {
-            withCredentials([usernamePassword(
-                credentialsId: "${IMAGE_REG_CREDENTIAL}",
-                usernameVariable: 'USER',
-                passwordVariable: 'PASSWORD'
-            )]) {
-                sh """
-                    echo user "$USER" pasword "$PASSWORD"
-                    podman login ${IMAGE_REG_HOST} --username ${USER} --password ${PASSWORD}
-                    podman build -f ${baseDir}/Dockerfile \
-                        -t ${imagePath}:${tag} \
-                        --build-arg BUILD_LIB_DIR=${BUILD_LIB_DIR} \
-                        --build-arg ARTIFACTORY_FILE=${artifactoryFile} \
-                            ${SRC_DIR}/${SUB_DIR}
-                    podman push ${imagePath}:${tag}
-
-                    podman tag ${imagePath}:${tag} ${imagePath}:latest
-                    podman push ${imagePath}:latest
-                """
-            }
+            sh """
+                podman build -f ./Dockerfile \
+                    -t ${imagePath}:${tag} \
+                    --build-arg BUILD_LIB_DIR=${BUILD_LIB_DIR} \
+                    --build-arg ARTIFACTORY_FILE=${artifactoryFile} \
+                        ${buildDir}
+            """
         }
     }    
+}
+def getBuildDir() {
+    if (env.SERVICE_GROUP==env.SERVICEGROUP_SC) {    
+        return "${SRC_DIR}"
+    } else if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE) {    
+        return "${SRC_DIR}/${SUB_DIR_INFRA}"
+    } else if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE_FRONT) {    
+        return "."
+    } else {
+        return "."
+    }
 }
 
 //-- Build Container image for Scripts
@@ -290,6 +328,28 @@ def stageScanContainerImageVulnurability() {
     }
 }
 
+//-- Push container image
+def stagePushContainerImage() {
+    stage("Push Container image") {
+        container("podman") {
+            withCredentials([usernamePassword(
+                credentialsId: "${IMAGE_REG_CREDENTIAL}",
+                usernameVariable: 'USER',
+                passwordVariable: 'PASSWORD'
+            )]) {
+                sh """
+                    echo user "$USER" pasword "$PASSWORD"
+                    podman login ${IMAGE_REG_HOST} --username ${USER} --password ${PASSWORD}
+                    podman push ${imagePath}:${tag}
+
+                    podman tag ${imagePath}:${tag} ${imagePath}:latest
+                    podman push ${imagePath}:latest
+                """
+            }
+        }
+    }
+}
+
 //-- K8s Deploy manifest파일 생성  
 def stageGenerateManifest() {
     stage( "Generate deployment yaml" ) {
@@ -306,9 +366,9 @@ def stageGenerateManifest() {
 
                 if (env.SERVICE_GROUP == env.SERVICEGROUP_SC || env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
                     export eureka_service_url=${eurekaServiceUrl}
-                    if (env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
-                        export config_server_fqdn=${configServerFQDN}
-                    }
+                }
+                if (env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
+                    export config_server_fqdn=${configServerFQDN}
                 }
 
                 envsubst < ${baseDir}/${manifest}.template > ${baseDir}/${manifest}
@@ -332,13 +392,13 @@ def notifySlack(STATUS, COLOR) {
     //slackSend (channel: '#cicd', color: COLOR, message: STATUS+" : " +  "${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
 }
 
-def getTimestamp() {
+def getImageTag() {
     def dateFormat = new java.text.SimpleDateFormat("yyyyMMddHHmmss")
     def currentDate = new Date()
     def timestamp = dateFormat.format(currentDate)
 
     //return timestamp
-    return ${tag}
+    return env.SERVICE_VERSION
 }
 
 def getVulnerabilityResult(trivyOutput) {
