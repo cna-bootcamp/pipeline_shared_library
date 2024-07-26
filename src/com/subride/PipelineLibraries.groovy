@@ -143,9 +143,10 @@ class PipelineLibraries implements Serializable {
     }
     //Build: build jar
     def buildJar() {
+        def buildDir = getBuildDir()
         script.container("gradle") {
             script.sh 'echo "Build jar under build directory"'
-            script.sh "gradle :${envVars.SRC_DIR}:${envVars.SUB_DIR_INFRA}:build -x test"
+            script.sh "gradle :${buildDir}:build -x test"
         }
     }
 
@@ -161,6 +162,13 @@ class PipelineLibraries implements Serializable {
                         -Dsonar.java.binaries=${javaBinaries}
                 """
             }
+        }
+    }
+    def getJavaBinaries() {
+        if (envVar.SERVICE_GROUP==envVar.SERVICEGROUP_SUBRIDE) {
+            return "${envVar.SUB_DIR_INFRA}/build/classes/java/main,${envVar.SUB_DIR_BIZ}/build/classes/java/main"
+        } else {
+            return "build/classes/java/main"
         }
     }
 
@@ -274,6 +282,18 @@ class PipelineLibraries implements Serializable {
     def deploy() {
         script.container("kubectl") {
             script.sh "kubectl apply -f ${envVars.baseDir}/${envVars.manifest} -n ${envVars.namespace}"
+        }
+    }
+
+    def getBuildDir() {
+        if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SC) {    
+            return "${envVars.SRC_DIR}"
+        } else if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SUBRIDE) {    
+            return "${envVars.SRC_DIR}/${envVars.SUB_DIR_INFRA}"
+        } else if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SUBRIDE_FRONT) {    
+            return "."
+        } else {
+            return "."
         }
     }
 
