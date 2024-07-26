@@ -71,9 +71,9 @@ class PipelineLibraries implements Serializable {
                                 ssh-keyscan -H ${envVars.NFS_HOST} >> ~/.ssh/known_hosts
 
                                 if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
-                                    ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}"
+                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}"
                                 fi
-                                ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}"
+                                ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}"
                             """
                         }
                     }
@@ -269,8 +269,8 @@ class PipelineLibraries implements Serializable {
                     passwordVariable: 'PASSWORD'
                 )]) {
                     script.sh """
-                        echo user "$USER" pasword "$PASSWORD"
-                        podman login ${envVars.IMAGE_REG_HOST} --username ${USER} --password ${PASSWORD}
+                        echo user "\$USER" pasword "\$PASSWORD"
+                        podman login ${envVars.IMAGE_REG_HOST} --username \${USER} --password \${PASSWORD}
                         podman build -f ${envVars.baseDir}/Dockerfile \
                             -t ${envVars.imagePath}:${envVars.tag} \
                             .
