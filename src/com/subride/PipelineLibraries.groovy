@@ -80,17 +80,6 @@ class PipelineLibraries implements Serializable {
                         }
                     }
                 }
-
-                script.stage("Get Source") {
-                    script.checkout scm
-                }
-
-                //---- 소스 변경 여부 검사
-                if (!checkSourceChanges()) {
-                    script.currentBuild.result = 'SUCCESS'
-                    script.currentBuild.description = "소스 변경이 없어 수행하지 않음"
-                    return
-                }
             }
         }
     }
