@@ -5,16 +5,16 @@ class commonFunctions {
         env.SERVICE_ID = serviceId
         env.SERVICE_VERSION = version 
 
-        env.NFS_DIR=data
-        env.NFS_CREDENTIAL=jenkins-nfs-ssh
+        env.NFS_DIR="data"
+        env.NFS_CREDENTIAL="jenkins-nfs-ssh"
 
-        env.GRADLE_CACHE_DIR=gradle
-        env.TRIVY_CACHE_DIR=trivy-cache
-        env.IMAGE_REG_PULL_SECRET=dockerhub
-        env.IMAGE_PULL_POLICY=Always
-        env.BUILD_LIB_DIR=build/libs
-        env.JAVA_BINARY_DIR=build/classes/java/main
-        env.SONAR_SERVER_ID=SonarQube   //이 이름으로 Jenkins 시스템 설정의 SonarQube servers에 등록되어 있어야 함
+        env.GRADLE_CACHE_DIR="gradle"
+        env.TRIVY_CACHE_DIR="trivy-cache"
+        env.IMAGE_REG_PULL_SECRET="dockerhub"
+        env.IMAGE_PULL_POLICY="Always"
+        env.BUILD_LIB_DIR="build/libs"
+        env.JAVA_BINARY_DIR="build/classes/java/main"
+        env.SONAR_SERVER_ID="SonarQube"   //이 이름으로 Jenkins 시스템 설정의 SonarQube servers에 등록되어 있어야 함
 
         env.SERVICE_GROUP_SC = "sc"
         env.SERVICE_GROUP_SUBRIDE = "subride"
@@ -29,10 +29,10 @@ class commonFunctions {
         env.PIPELINE_ID = "${SRC_DIR}-${env.BUILD_NUMBER}"
 
         //-- 상황에 맞게 변경 필요  
-        env.NFS_HOST=43.200.12.214
-        env.IMAGE_REG_CREDENTIAL=credential_cna_ondal
-        env.IMAGE_REG_HOST=docker.io
-        env.IMAGE_REG_ORG=hiondal
+        env.NFS_HOST="43.200.12.214"
+        env.IMAGE_REG_CREDENTIAL="credential_cna_ondal"
+        env.IMAGE_REG_HOST="docker.io"
+        env.IMAGE_REG_ORG="hiondal"
     }
 
     //-- 서비스의 소스 디렉토리 리턴  
