@@ -67,6 +67,7 @@ class PipelineLibraries implements Serializable {
         )
         {
             script.node("${envVars.PIPELINE_ID}") {
+                //-- chching을 위해 NFS볼륨 마운트
                 script.stage("Prepare Cache Volumes") {
                     script.container("ssh") {
                         script.withCredentials([script.sshUserPrivateKey(credentialsId: "${envVars.NFS_CREDENTIAL}", keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
@@ -83,10 +84,9 @@ class PipelineLibraries implements Serializable {
                     }
                 }
 
+                //-- 소스변경 검사 
                 script.stage("Check Source Changes") {
-                    //script.container('git') {
-                        hasChanges = checkSourceChanges()
-                    //}
+                    hasChanges = checkSourceChanges()
                 }
             }            
         }
