@@ -10,10 +10,11 @@ class PipelineLibraries implements Serializable {
     }
 
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
-    def setGlobalVariables(String serviceGroup, String serviceId, String version) {
+    def setGlobalVariables(String serviceGroup, String serviceId, String version, String branch) {
         envVars.SERVICE_GROUP = serviceGroup
         envVars.SERVICE_ID = serviceId
         envVars.SERVICE_VERSION = version
+        envVars.SERVICE_BRANCH = branch 
 
         envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
@@ -97,29 +98,36 @@ class PipelineLibraries implements Serializable {
     //---- 소스 변경 여부 검사
     def checkSourceChanges() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
-
+        
+        def changedFiles = []
+        
+        // Get changed files
+        script.checkout([$class: 'GitSCM', branches: [[name: "*/${envVars.SERVICE_BRANCH}"]], extensions: [[$class: 'CloneOption', noTags: false, shallow: false, depth: 0]]])
         def changeLogSets = script.currentBuild.changeSets
-        def hasChangesInDirectory = false
-
+        
         for (int i = 0; i < changeLogSets.size(); i++) {
             def entries = changeLogSets[i].items
             for (int j = 0; j < entries.length; j++) {
                 def entry = entries[j]
-                def files = entry.affectedFiles
+                def files = new ArrayList(entry.affectedFiles)
                 for (int k = 0; k < files.size(); k++) {
                     def file = files[k]
-                    if (file.path.startsWith("${envVars.SRC_DIR}/")) {
-                        hasChangesInDirectory = true
-                        break
-                    }
+                    changedFiles.add(file.path)
                 }
             }
         }
-
+        
+        script.echo "Changed files: ${changedFiles}"
+        
+        def hasChangesInDirectory = changedFiles.any { it.startsWith("${envVars.SRC_DIR}/") }
+        
         if (!hasChangesInDirectory) {
+            script.echo "No changes in <${envVars.SRC_DIR}> directory. Skipping pipeline."
+            script.currentBuild.result = 'SUCCESS'
             return false
         }
-
+        
+        script.echo "Changes detected in <${envVars.SRC_DIR}> directory. Continuing pipeline."
         return true
     }
 
