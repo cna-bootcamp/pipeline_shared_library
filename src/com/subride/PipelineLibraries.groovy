@@ -98,8 +98,8 @@ class PipelineLibraries implements Serializable {
     def checkSourceChanges() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
 
-        script.checkout scm 
-        
+        script.checkout script.scm 
+
         def changeLogSets = script.currentBuild.changeSets
         def hasChangesInDirectory = false
 
