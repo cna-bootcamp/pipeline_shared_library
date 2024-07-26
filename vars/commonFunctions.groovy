@@ -65,7 +65,7 @@ def prepareEnvironment() {
 }
 
 //-- Pod 구성  
-def setPodTemplate() {
+def setPodTemplates() {
     def volumes = [
         nfsVolume(mountPath: "/${TRIVY_CACHE_DIR}", serverAddress: "${NFS_HOST}", serverPath: "/${NFS_DIR}/${TRIVY_CACHE_DIR}/${SRC_DIR}", readOnly: false)
     ]
