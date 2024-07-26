@@ -234,8 +234,6 @@ class PipelineLibraries implements Serializable {
 
     //-- Release:  Push Container image
     def pushContainerImage() {
-        script.echo "credential: ${envVars.IMAGE_REG_CREDENTIAL}"
-        
         script.container("podman") {
             script.withCredentials([script.usernamePassword(
                 credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
@@ -243,7 +241,7 @@ class PipelineLibraries implements Serializable {
                 passwordVariable: 'PASSWORD'
             )]) {
                 script.sh """
-                    echo user "\${USER}" pasword "\${PASSWORD}"
+                    echo user "\${USER}" password "\${PASSWORD}"
                     podman login ${envVars.IMAGE_REG_HOST} --username "\${USER}" --password "\${PASSWORD}"
                     podman push ${envVars.imagePath}:${envVars.tag}
 
@@ -253,7 +251,7 @@ class PipelineLibraries implements Serializable {
             }
         }
     }
-
+    
     //-- Deploy: 배포 manifest 파일 생성
     def generateManifest() {
         script.container("envsubst") {
