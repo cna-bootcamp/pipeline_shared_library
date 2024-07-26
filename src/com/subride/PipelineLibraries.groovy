@@ -156,9 +156,9 @@ class PipelineLibraries implements Serializable {
         script.container("gradle") {
             script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
                 script.sh """
-                    gradle :${applicationName}:sonar \
-                        -Dsonar.projectName=${sonarProjectKey} \
-                        -Dsonar.projectKey=${sonarProjectKey} \
+                    gradle :${envVars.applicationName}:sonar \
+                        -Dsonar.projectName=${envVars.sonarProjectKey} \
+                        -Dsonar.projectKey=${envVars.sonarProjectKey} \
                         -Dsonar.java.binaries=${javaBinaries}
                 """
             }
