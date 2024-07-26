@@ -121,7 +121,6 @@ class PipelineLibraries implements Serializable {
         }
 
         if (!hasChangesInDirectory) {
-            
             return false
         }
 
