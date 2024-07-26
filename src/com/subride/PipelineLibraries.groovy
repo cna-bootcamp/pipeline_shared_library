@@ -14,7 +14,7 @@ class PipelineLibraries implements Serializable {
         envVars.SERVICE_ID = serviceId
         envVars.SERVICE_VERSION = version
 
-        envVars.NFS_DIR = "data"
+        envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
 
         envVars.GRADLE_CACHE_DIR = "gradle"
