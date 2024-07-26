@@ -84,9 +84,9 @@ class PipelineLibraries implements Serializable {
                 }
 
                 script.stage("Check Source Changes") {
-                    script.container('git') {
+                    //script.container('git') {
                         hasChanges = checkSourceChanges()
-                    }
+                    //}
                 }
             }            
         }
@@ -97,39 +97,31 @@ class PipelineLibraries implements Serializable {
     //---- 소스 변경 여부 검사
     def checkSourceChanges() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
+
+        script.checkout scm 
         
-        def changedFiles = []
-        
-        // Fetch the latest changes
-        script.checkout([
-            $class: 'GitSCM',
-            //branches: [[name: "*/${envVars.SERVICE_BRANCH}"]],
-            branches: [[name: "*/main"]],
-            userRemoteConfigs: [[url: script.env.GIT_URL]]
-        ])
-        
-        // Get the commit hash of the last successful build
-        def lastSuccessfulCommit = script.sh(script: "git rev-parse ${script.env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: 'HEAD~1'}", returnStdout: true).trim()
-        
-        // Get the current commit hash
-        def currentCommit = script.sh(script: "git rev-parse HEAD", returnStdout: true).trim()
-        
-        script.echo "Checking changes between ${lastSuccessfulCommit} and ${currentCommit}"
-        
-        // Get changed files between the last successful build and current build
-        changedFiles = script.sh(script: "git diff --name-only ${lastSuccessfulCommit} ${currentCommit}", returnStdout: true).split("\n")
-        
-        script.echo "Changed files: ${changedFiles}"
-        
-        def hasChangesInDirectory = changedFiles.any { it.startsWith("${envVars.SRC_DIR}/") }
-        
+        def changeLogSets = script.currentBuild.changeSets
+        def hasChangesInDirectory = false
+
+        for (int i = 0; i < changeLogSets.size(); i++) {
+            def entries = changeLogSets[i].items
+            for (int j = 0; j < entries.length; j++) {
+                def entry = entries[j]
+                def files = entry.affectedFiles
+                for (int k = 0; k < files.size(); k++) {
+                    def file = files[k]
+                    if (file.path.startsWith("${envVars.SRC_DIR}/")) {
+                        hasChangesInDirectory = true
+                        break
+                    }
+                }
+            }
+        }
+
         if (!hasChangesInDirectory) {
-            script.echo "No changes in <${envVars.SRC_DIR}> directory. Skipping pipeline."
-            script.currentBuild.result = 'SUCCESS'
             return false
         }
-        
-        script.echo "Changes detected in <${envVars.SRC_DIR}> directory. Continuing pipeline."
+
         return true
     }
 
