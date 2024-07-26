@@ -86,10 +86,6 @@ class PipelineLibraries implements Serializable {
                 script.stage("Check Source Changes") {
                     script.container('git') {
                         hasChanges = checkSourceChanges()
-                        if (!hasChanges) {
-                            script.currentBuild.result = 'SUCCESS'
-                            
-                        }
                     }
                 }
             }            
