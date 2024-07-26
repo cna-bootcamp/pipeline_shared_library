@@ -82,30 +82,6 @@ class PipelineLibraries implements Serializable {
         }
     }
 
-    def setPodTemplates() {
-        def volumes = [
-            script.nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}", serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
-        ]
-        
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            volumes.add(
-                script.nfsVolume(mountPath: "/home/gradle/.gradle", serverAddress: "${envVars.NFS_HOST}", serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
-            )
-        }
-        
-        script.podTemplate(
-            label: "${envVars.PIPELINE_ID}",
-            containers: [
-                script.containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
-                script.containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
-                script.containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
-                script.containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
-                script.containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
-            ],
-            volumes: volumes
-        )    
-    }
-
     def checkSourceChanges() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
 
