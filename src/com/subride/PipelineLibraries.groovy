@@ -241,8 +241,8 @@ class PipelineLibraries implements Serializable {
                 passwordVariable: 'PASSWORD'
             )]) {
                 script.sh """
-                    echo user "\$USER" pasword "\$PASSWORD"
-                    podman login ${envVars.IMAGE_REG_HOST} --username \${USER} --password \${PASSWORD}
+                    echo user "\${USER}" pasword "\${PASSWORD}"
+                    podman login ${envVars.IMAGE_REG_HOST} --username "\${USER}" --password "\${PASSWORD}"
                     podman push ${envVars.imagePath}:${envVars.tag}
 
                     podman tag ${envVars.imagePath}:${envVars.tag} ${envVars.imagePath}:latest
