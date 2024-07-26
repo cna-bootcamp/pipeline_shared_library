@@ -80,6 +80,17 @@ class PipelineLibraries implements Serializable {
                         }
                     }
                 }
+
+                script.stage("Get Source") {
+                    checkout scm
+                }
+
+                //---- 소스 변경 여부 검사
+                if (!checkSourceChanges()) {
+                    script.currentBuild.result = 'SUCCESS'
+                    script.currentBuild.description = "소스 변경이 없어 수행하지 않음"
+                    return
+                }
             }
         }
     }
@@ -285,6 +296,7 @@ class PipelineLibraries implements Serializable {
         }
     }
 
+    //-- jar빌드와 이미지 빌드 시 기준 디렉토리 계산
     def getBuildDir() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
             return "${envVars.SRC_DIR}"
@@ -297,12 +309,14 @@ class PipelineLibraries implements Serializable {
         }
     }
 
+    //-- Slack으로 통지  
     def notifySlack(STATUS, COLOR) {
         // Implement Slack notification logic here
         // For example:
         // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
     }
 
+    //-- image Tag를 동적으로 변경
     def getImageTag() {
         def dateFormat = new java.text.SimpleDateFormat("yyyyMMddHHmmss")
         def currentDate = new Date()
@@ -311,6 +325,7 @@ class PipelineLibraries implements Serializable {
         return envVars.SERVICE_VERSION
     }
 
+    //-- image vulnerability 결과를 파싱하여 심각도 레벨별 count를 구함
     def getVulnerabilityResult(trivyOutput) {
         def vulnerabilityCounts = [:]
         def totalLine = trivyOutput.readLines().find { it.startsWith("Total:") }
