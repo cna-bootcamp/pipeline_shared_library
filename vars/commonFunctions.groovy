@@ -1,3 +1,19 @@
+def setGlobalVariables() {
+    env.NFS_HOST=43.200.12.214
+    env.NFS_DIR=data
+    env.NFS_CREDENTIAL=jenkins-nfs-ssh
+    env.GRADLE_CACHE_DIR=gradle
+    env.TRIVY_CACHE_DIR=trivy-cache
+    env.IMAGE_REG_PULL_SECRET=dockerhub
+    env.IMAGE_PULL_POLICY=Always
+    env.IMAGE_REG_CREDENTIAL=credential_cna_ondal
+    env.BUILD_LIB_DIR=build/libs
+    env.IMAGE_REG_HOST=docker.io
+    env.IMAGE_REG_ORG=hiondal
+    env.JAVA_BINARY_DIR=build/classes/java/main
+    env.SONAR_SERVER_ID=SonarQube
+}
+
 def notifySlack(STATUS, COLOR) {
     //slackSend (channel: '#cicd', color: COLOR, message: STATUS+" : " +  "${env.JOB_NAME} [${env.BUILD_NUMBER}] (${env.BUILD_URL})")
 }
@@ -63,4 +79,6 @@ def getEurekaServiceUrl() {
 def getConfigFQDN() {
     return "http://config:18080"
 }
+
+
 
