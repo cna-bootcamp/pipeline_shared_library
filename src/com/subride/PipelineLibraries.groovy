@@ -82,7 +82,7 @@ class PipelineLibraries implements Serializable {
                 }
 
                 script.stage("Get Source") {
-                    checkout scm
+                    script.checkout scm
                 }
 
                 //---- 소스 변경 여부 검사
