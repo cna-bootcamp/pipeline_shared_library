@@ -1,4 +1,4 @@
-class commonFunctions {
+class pipelineLibraries {
     //-- Pipeline 전역 변수 셋팅  
     def setGlobalVariables(String serviceGroup, String serviceId, String version) {
         env.SERVICE_GROUP=serviceGroup
