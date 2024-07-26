@@ -236,7 +236,8 @@ class PipelineLibraries implements Serializable {
     def pushContainerImage() {
         script.container("podman") {
             script.withCredentials([script.usernamePassword(
-                credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
+                //credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
+                credentialsId: "credential_dockerhub_ondal",
                 usernameVariable: 'USER',
                 passwordVariable: 'PASSWORD'
             )]) {
@@ -251,7 +252,7 @@ class PipelineLibraries implements Serializable {
             }
         }
     }
-    
+
     //-- Deploy: 배포 manifest 파일 생성
     def generateManifest() {
         script.container("envsubst") {
