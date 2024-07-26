@@ -165,7 +165,7 @@ class PipelineLibraries implements Serializable {
         }
     }
     def getJavaBinaries() {
-        if (envVar.SERVICE_GROUP==envVar.SERVICEGROUP_SUBRIDE) {
+        if (envVar.SERVICE_GROUP==envVar.SERVICE_GROUP_SUBRIDE) {
             return "${envVar.SUB_DIR_INFRA}/build/classes/java/main,${envVar.SUB_DIR_BIZ}/build/classes/java/main"
         } else {
             return "build/classes/java/main"
