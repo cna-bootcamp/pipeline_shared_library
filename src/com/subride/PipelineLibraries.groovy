@@ -58,6 +58,11 @@ class PipelineLibraries implements Serializable {
     //-- 실행환경 준비
     def prepareEnvironment() {
         def hasChanges = true
+        //-- 소스변경 검사 
+        script.stage("Check Source Changes") {
+            hasChanges = checkSourceChanges()
+            if (!hasChanges) return hasChanges
+        }
 
         script.podTemplate(
             label: "${envVars.PIPELINE_ID}",
@@ -84,13 +89,9 @@ class PipelineLibraries implements Serializable {
                     }
                 }
 
-                //-- 소스변경 검사 
-                script.stage("Check Source Changes") {
-                    hasChanges = checkSourceChanges()
-                }
             }            
         }
-
+        
         return hasChanges
     }
 
