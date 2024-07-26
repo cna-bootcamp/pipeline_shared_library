@@ -40,7 +40,7 @@ class PipelineLibraries implements Serializable {
 
         // 상황에 맞게 변경 필요
         envVars.NFS_HOST = "43.200.12.214"
-        envVars.IMAGE_REG_CREDENTIAL = "credential-dockerhub-ondal"
+        envVars.IMAGE_REG_CREDENTIAL = "credential_dockerhub_ondal"
         envVars.IMAGE_REG_HOST = "docker.io"
         envVars.IMAGE_REG_ORG = "hiondal"
     }
