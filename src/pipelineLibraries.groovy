@@ -202,6 +202,7 @@ class pipelineLibraries {
                     """
                 }
             }    
+        }
     }
     def getJavaBinaries() {
         if (env.SERVICE_GROUP==env.SERVICEGROUP_SUBRIDE) {
