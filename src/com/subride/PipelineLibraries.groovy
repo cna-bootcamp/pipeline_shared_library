@@ -100,8 +100,13 @@ class PipelineLibraries implements Serializable {
         
         def changedFiles = []
         
-        // Fetch the latest changes without checking out
-        script.checkout scm
+        // Fetch the latest changes
+        script.checkout([
+            $class: 'GitSCM',
+            //branches: [[name: "*/${envVars.SERVICE_BRANCH}"]],
+            branches: [[name: "*/main"]],
+            userRemoteConfigs: [[url: script.env.GIT_URL]]
+        ])
         
         // Get the commit hash of the last successful build
         def lastSuccessfulCommit = script.sh(script: "git rev-parse ${script.env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: 'HEAD~1'}", returnStdout: true).trim()
