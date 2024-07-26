@@ -421,8 +421,4 @@ class pipelineLibraries {
         
         return vulnerabilityCounts
     }
-
 }
-
-
-
