@@ -57,6 +57,8 @@ class PipelineLibraries implements Serializable {
 
     //-- 실행환경 준비
     def prepareEnvironment() {
+        def hasChanges = true
+
         script.podTemplate(
             label: "${envVars.PIPELINE_ID}",
             containers: [
