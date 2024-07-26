@@ -212,7 +212,7 @@ class pipelineLibraries {
     }
 
     //-- SonarQube를 이용한 소스 검사(Scripts) 
-    def stageSonarQubeAnalysisForScripts {
+    def stageSonarQubeAnalysisForScripts() {
         stage("SonarQube Analysis") {
             container("sonar-scanner") {
                 //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
