@@ -48,29 +48,27 @@ def getSourceDir() {
 
 //-- 실행환경 준비  
 def prepareEnvironment() {
-    stage("Prepare Environment") {
-        podTemplate(
-            label: "${PIPELINE_ID}",
-            containers: [
-                containerTemplate(name: 'ssh', image: 'kroniak/ssh-client', command: 'cat', ttyEnabled: true),
-            ]
-        )
-        {
-            //-- NFS 공유 볼륨 디렉토리 생성
-            node("${PIPELINE_ID}") {
-                stage("Prepare Cache Volumes") {
-                    container("ssh") {
-                        withCredentials([sshUserPrivateKey(credentialsId: "${NFS_CREDENTIAL}", keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
-                            sh """
-                                mkdir -p ~/.ssh
-                                ssh-keyscan -H ${NFS_HOST} >> ~/.ssh/known_hosts
+    podTemplate(
+        label: "${PIPELINE_ID}",
+        containers: [
+            containerTemplate(name: 'ssh', image: 'kroniak/ssh-client', command: 'cat', ttyEnabled: true),
+        ]
+    )
+    {
+        //-- NFS 공유 볼륨 디렉토리 생성
+        node("${PIPELINE_ID}") {
+            stage("Prepare Cache Volumes") {
+                container("ssh") {
+                    withCredentials([sshUserPrivateKey(credentialsId: "${NFS_CREDENTIAL}", keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
+                        sh """
+                            mkdir -p ~/.ssh
+                            ssh-keyscan -H ${NFS_HOST} >> ~/.ssh/known_hosts
 
-                                if (env.SERVICE_GROUP == env.SERVICEGROUP_SC || env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
-                                    ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${NFS_HOST} "sudo mkdir -p /${NFS_DIR}/${GRADLE_CACHE_DIR}/${SRC_DIR}"
-                                }
-                                ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${NFS_HOST} "sudo mkdir -p /${NFS_DIR}/${TRIVY_CACHE_DIR}/${SRC_DIR}"
-                            """
-                        }
+                            if (env.SERVICE_GROUP == env.SERVICEGROUP_SC || env.SERVICE_GROUP == env.SERVICEGROUP_SUBRIDE) {
+                                ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${NFS_HOST} "sudo mkdir -p /${NFS_DIR}/${GRADLE_CACHE_DIR}/${SRC_DIR}"
+                            }
+                            ssh -i ${SSH_KEY_FILE} ${SSH_USER}@${NFS_HOST} "sudo mkdir -p /${NFS_DIR}/${TRIVY_CACHE_DIR}/${SRC_DIR}"
+                        """
                     }
                 }
             }
