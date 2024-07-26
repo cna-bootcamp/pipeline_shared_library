@@ -35,7 +35,7 @@ class PipelineLibraries implements Serializable {
             envVars.SUB_DIR_BIZ = envVars.SRC_DIR + "-biz"
             envVars.SIB_DIR_INFRA = envVars.SRC_DIR + "-infra"
         }
-
+        envVars.PIPELINE_DIR = "pipeline"
         envVars.PIPELINE_ID = "${envVars.SRC_DIR}-${script.env.BUILD_NUMBER}"
 
         // 상황에 맞게 변경 필요
@@ -200,7 +200,7 @@ class PipelineLibraries implements Serializable {
         def buildDir = getBuildDir()
         script.container("podman") {
             script.sh """
-                podman build -f ./Dockerfile \
+                podman build -f ${envVars.PIPELINE_DIR}/Dockerfile \
                     -t ${envVars.imagePath}:${envVars.tag} \
                     --build-arg BUILD_LIB_DIR=${envVars.BUILD_LIB_DIR} \
                     --build-arg ARTIFACTORY_FILE=${envVars.artifactoryFile} \
