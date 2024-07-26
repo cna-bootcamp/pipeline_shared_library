@@ -88,8 +88,7 @@ class PipelineLibraries implements Serializable {
                         hasChanges = checkSourceChanges()
                         if (!hasChanges) {
                             script.currentBuild.result = 'SUCCESS'
-                            script.currentBuild.description = "소스 변경이 없어 수행하지 않음"
-                            script.echo ("소스 변경이 없어 파이프라인을 종료합니다.")
+                            
                         }
                     }
                 }
@@ -122,8 +121,7 @@ class PipelineLibraries implements Serializable {
         }
 
         if (!hasChangesInDirectory) {
-            script.echo "No changes in <${envVars.SRC_DIR}> directory. Skipping pipeline."
-            script.currentBuild.result = 'STOP'
+            
             return false
         }
 
