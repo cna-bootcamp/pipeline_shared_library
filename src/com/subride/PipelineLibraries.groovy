@@ -81,11 +81,29 @@ class PipelineLibraries implements Serializable {
                     }
                 }
             }
+
+            script.stage("Check Source Changes") {
+                script.container('git') {
+                    def hasChanges = checkSourceChanges()
+                    if (!hasChanges) {
+                        script.currentBuild.result = 'SUCCESS'
+                        script.currentBuild.description = "소스 변경이 없어 수행하지 않음"
+                        script.error("소스 변경이 없어 파이프라인을 종료합니다.")
+                    }
+                }
+            }
+            
         }
+    }
+    def checkSourceChanges() {
+        def lastCommitHash = script.sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+        def remoteCommitHash = script.sh(script: "git ls-remote origin -h refs/heads/${script.env.BRANCH_NAME} | cut -f1", returnStdout: true).trim()
+        
+        return lastCommitHash != remoteCommitHash
     }
 
     //---- 소스 변경 여부 검사
-    def checkSourceChanges() {
+    def checkSourceChanges1() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
 
         def changeLogSets = script.currentBuild.changeSets
