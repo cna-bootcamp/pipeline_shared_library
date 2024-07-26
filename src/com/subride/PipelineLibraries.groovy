@@ -286,11 +286,11 @@ class PipelineLibraries implements Serializable {
     }
 
     def getBuildDir() {
-        if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SC) {    
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
             return "${envVars.SRC_DIR}"
-        } else if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SUBRIDE) {    
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
             return "${envVars.SRC_DIR}/${envVars.SUB_DIR_INFRA}"
-        } else if (envVars.SERVICE_GROUP==envVars.SERVICEGROUP_SUBRIDE_FRONT) {    
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
             return "."
         } else {
             return "."
