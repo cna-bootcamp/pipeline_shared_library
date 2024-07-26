@@ -235,7 +235,7 @@ class PipelineLibraries implements Serializable {
     //-- Release:  Push Container image
     def pushContainerImage() {
         script.container("podman") {
-            withCredentials([script.usernamePassword(
+            script.withCredentials([script.usernamePassword(
                 credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
                 usernameVariable: 'USER',
                 passwordVariable: 'PASSWORD'
