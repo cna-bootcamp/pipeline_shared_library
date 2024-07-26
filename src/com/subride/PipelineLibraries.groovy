@@ -237,12 +237,12 @@ class PipelineLibraries implements Serializable {
         script.container("podman") {
             script.withCredentials([script.usernamePassword(
                 credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
-                usernameVariable: 'USER',
+                usernameVariable: 'USERNAME',
                 passwordVariable: 'PASSWORD'
             )]) {
                 script.sh """
-                    echo user "\${USER}" password "\${PASSWORD}"
-                    podman login ${envVars.IMAGE_REG_HOST} --username "hiondal" --password "\${PASSWORD}"
+                    echo user "\${USERNAME}" password "\${PASSWORD}"
+                    podman login ${envVars.IMAGE_REG_HOST} --username "\${USERNAME}" --password "\${PASSWORD}"
                     podman push ${envVars.imagePath}:${envVars.tag}
 
                     podman tag ${envVars.imagePath}:${envVars.tag} ${envVars.imagePath}:latest
