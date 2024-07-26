@@ -9,6 +9,7 @@ class PipelineLibraries implements Serializable {
         this.script = script
     }
 
+    //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
     def setGlobalVariables(String serviceGroup, String serviceId, String version) {
         envVars.SERVICE_GROUP = serviceGroup
         envVars.SERVICE_ID = serviceId
@@ -54,6 +55,7 @@ class PipelineLibraries implements Serializable {
         return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
     }
 
+    //-- 실행환경 준비
     def prepareEnvironment() {
         script.podTemplate(
             label: "${envVars.PIPELINE_ID}",
@@ -82,6 +84,7 @@ class PipelineLibraries implements Serializable {
         }
     }
 
+    //---- 소스 변경 여부 검사
     def checkSourceChanges() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
 
@@ -112,6 +115,7 @@ class PipelineLibraries implements Serializable {
         return true
     }
 
+    //-- 실행을 위한 변수 셋팅
     def setCICDVariables() {
         envVars.baseDir = getBaseDir()
         def props = script.readProperties file:"${envVars.baseDir}/deploy_env_vars"
@@ -137,217 +141,140 @@ class PipelineLibraries implements Serializable {
             return "${envVars.SRC_DIR}/deployment"    
         }
     }
-
-    def stageBuildJar() {
-        script.stage("Build Jar") {
-            script.container("gradle") {
-                script.sh 'echo "Build jar under build directory"'
-                script.sh "gradle :${envVars.SRC_DIR}:${envVars.SUB_DIR_INFRA}:build -x test"
-            }
-        }    
-    }
-
-    def stageBuildScripts() {
-        script.stage("Build React Scripts") {
-            script.container("node") {
-                script.sh """
-                    npm install
-                    npm run build --watch --watch-options-aggregate-timeout 1000
-                """
-            }
+    //Build: build jar
+    def buildJar() {
+        script.container("gradle") {
+            script.sh 'echo "Build jar under build directory"'
+            script.sh "gradle :${envVars.SRC_DIR}:${envVars.SUB_DIR_INFRA}:build -x test"
         }
     }
 
-    def stageSonarQubeAnalysisForJava() {
+    //-- Build: 소스품질 검사
+    def sonarQubeAnalysisForJava() {
         def javaBinaries = getJavaBinaries()
-
-        script.stage("SonarQube Analysis") {
-            script.container("gradle") {
-                script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
-                    script.sh """
-                        gradle :${envVars.applicationName}:sonar \
-                            -Dsonar.projectName=${envVars.sonarProjectKey} \
-                            -Dsonar.projectKey=${envVars.sonarProjectKey} \
-                            -Dsonar.java.binaries=${javaBinaries}
-                    """
-                }
-            }    
-        }
-    }
-
-    def getJavaBinaries() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            return "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
-        } else {
-            return "build/classes/java/main"
-        }
-    }
-
-    def stageSonarQubeAnalysisForScripts() {
-        script.stage("SonarQube Analysis") {
-            script.container("sonar-scanner") {
-                script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
-                    script.sh """
-                        sonar-scanner
-                    """
-                }
-            }    
-        }
-    }
-
-    def stageVerifyQualityGate() {
-        script.stage("Verify Quality Gate") {
-            script.timeout(time: 10, unit: 'MINUTES') {
-                def qg = script.waitForQualityGate()
-                if (qg.status != 'OK') {
-                    script.echo "SonarQube Quality Gate failed. Aborting the pipeline."
-                    script.currentBuild.result = 'FAILURE'
-                    notifySlack("SonarQube Quality Gate failed.", "#FF0000")
-                    script.error "Pipeline aborted due to SonarQube Quality Gate failure: ${qg.status}"
-                }
+        script.container("gradle") {
+            script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
+                script.sh """
+                    gradle :${envVars.applicationName}:sonar \
+                        -Dsonar.projectName=${envVars.sonarProjectKey} \
+                        -Dsonar.projectKey=${envVars.sonarProjectKey} \
+                        -Dsonar.java.binaries=${javaBinaries}
+                """
             }
-        }    
+        }
     }
 
-    def stageBuildContainerImageForJava() {
+    //-- Build: Quality Gate 충족 검사
+    def verifyQualityGate() {
+        script.timeout(time: 10, unit: 'MINUTES') {
+            def qg = script.waitForQualityGate()
+            if (qg.status != 'OK') {
+                script.echo "SonarQube Quality Gate failed. Aborting the pipeline."
+                script.currentBuild.result = 'FAILURE'
+                notifySlack("SonarQube Quality Gate failed.", "#FF0000")
+                script.error "Pipeline aborted due to SonarQube Quality Gate failure: ${qg.status}"
+            }
+        }
+    }
+
+    //-- Build: Build Container image
+    def buildContainerImageForJava() {
         def buildDir = getBuildDir()
-        script.stage("Build Container image") {
-            script.container("podman") {
+        script.container("podman") {
+            script.sh """
+                podman build -f ./Dockerfile \
+                    -t ${envVars.imagePath}:${envVars.tag} \
+                    --build-arg BUILD_LIB_DIR=${envVars.BUILD_LIB_DIR} \
+                    --build-arg ARTIFACTORY_FILE=${envVars.artifactoryFile} \
+                        ${buildDir}
+            """
+        }
+    }
+
+    //-- Build: image 보안 취약성 점검
+    def scanContainerImageVulnerability() {
+        script.timeout(time: 10, unit: 'MINUTES') {
+            script.container("trivy") {
+                def trivyOutput = script.sh(
+                    script: """
+                        trivy image \
+                            --cache-dir /${envVars.TRIVY_CACHE_DIR} \
+                            --scanners vuln \
+                            --severity ${envVars.imageScanSeverity} \
+                            --exit-code 0 \
+                            ${envVars.imagePath}:${envVars.tag}
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                script.echo "Trivy scan results:"
+                script.echo trivyOutput
+
+                def vulnerabilityCounts = getVulnerabilityResult(trivyOutput)
+
+                if (vulnerabilityCounts["CRITICAL"] > 0) {
+                    script.echo "Critical vulnerabilities found. Aborting the pipeline."
+                    script.currentBuild.result = 'FAILURE'
+                    notifySlack("Vulnerability scan failed.", "#FF0000")
+                    script.error "Critical vulnerabilities found."
+                } else {
+                    script.echo "No critical vulnerabilities found. Continuing the pipeline."
+                }
+            }
+        }
+    }
+
+    //-- Release:  Push Container image
+    def pushContainerImage() {
+        script.container("podman") {
+            script.withCredentials([script.usernamePassword(
+                credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
+                usernameVariable: 'USER',
+                passwordVariable: 'PASSWORD'
+            )]) {
                 script.sh """
-                    podman build -f ./Dockerfile \
-                        -t ${envVars.imagePath}:${envVars.tag} \
-                        --build-arg BUILD_LIB_DIR=${envVars.BUILD_LIB_DIR} \
-                        --build-arg ARTIFACTORY_FILE=${envVars.artifactoryFile} \
-                            ${buildDir}
+                    echo user "\$USER" pasword "\$PASSWORD"
+                    podman login ${envVars.IMAGE_REG_HOST} --username \${USER} --password \${PASSWORD}
+                    podman push ${envVars.imagePath}:${envVars.tag}
+
+                    podman tag ${envVars.imagePath}:${envVars.tag} ${envVars.imagePath}:latest
+                    podman push ${envVars.imagePath}:latest
                 """
             }
-        }    
-    }
-
-    def getBuildDir() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
-            return "${envVars.SRC_DIR}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
-            return "${envVars.SRC_DIR}/${envVars.SUB_DIR_INFRA}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
-            return "."
-        } else {
-            return "."
         }
     }
 
-    def stageBuildContainerImageForScripts() {
-        script.stage("Build Container image") {
-            script.container("podman") {
-                script.withCredentials([script.usernamePassword(
-                    credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    script.sh """
-                        echo user "\$USER" pasword "\$PASSWORD"
-                        podman login ${envVars.IMAGE_REG_HOST} --username \${USER} --password \${PASSWORD}
-                        podman build -f ${envVars.baseDir}/Dockerfile \
-                            -t ${envVars.imagePath}:${envVars.tag} \
-                            .
-                        podman push ${envVars.imagePath}:${envVars.tag}
+    //-- Deploy: 배포 manifest 파일 생성
+    def generateManifest() {
+        script.container("envsubst") {
+            script.sh """
+                set -a
+                source ${envVars.baseDir}/deploy_env_vars
+                set +a
 
-                        podman tag ${envVars.imagePath}:${envVars.tag} ${envVars.imagePath}:latest
-                        podman push ${envVars.imagePath}:latest
-                    """
-                }
-            }
+                export tag=${envVars.tag}
+                export image_pull_secret=${envVars.IMAGE_REG_PULL_SECRET}
+                export image_pull_policy=${envVars.IMAGE_PULL_POLICY}
+                export image_path=${envVars.imagePath}:${envVars.tag}
+
+                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
+                    export eureka_service_url=${envVars.eurekaServiceUrl}
+                fi
+                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
+                    export config_server_fqdn=${envVars.configServerFQDN}
+                fi
+
+                envsubst < ${envVars.baseDir}/${envVars.manifest}.template > ${envVars.baseDir}/${envVars.manifest}
+                cat ${envVars.baseDir}/${envVars.manifest}
+            """
         }
     }
 
-    def stageScanContainerImageVulnurability() {
-        script.stage("Scan Image Vulnerability") {
-            script.timeout(time: 10, unit: 'MINUTES') {
-                script.container("trivy") {
-                    def trivyOutput = script.sh(
-                        script: """
-                            trivy image \
-                                --cache-dir /${envVars.TRIVY_CACHE_DIR} \
-                                --scanners vuln \
-                                --severity ${envVars.imageScanSeverity} \
-                                --exit-code 0 \
-                                ${envVars.imagePath}:${envVars.tag}
-                        """,
-                        returnStdout: true
-                    ).trim()
-
-                    script.echo "Trivy scan results:"
-                    script.echo trivyOutput
-
-                    def vulnerabilityCounts = getVulnerabilityResult(trivyOutput)
-
-                    if (vulnerabilityCounts["CRITICAL"] > 0) {
-                        script.echo "Critical vulnerabilities found. Aborting the pipeline."
-                        script.currentBuild.result = 'FAILURE'
-                        notifySlack("Vulnerability scan failed.", "#FF0000")
-                        script.error "Critical vulnerabilities found."
-                    } else {
-                        script.echo "No critical vulnerabilities found. Continuing the pipeline."
-                    }
-                }
-            }
+    //-- Deploy: 배포
+    def deploy() {
+        script.container("kubectl") {
+            script.sh "kubectl apply -f ${envVars.baseDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
-    }
-
-    def stagePushContainerImage() {
-        script.stage("Push Container image") {
-            script.container("podman") {
-                script.withCredentials([script.usernamePassword(
-                    credentialsId: "${envVars.IMAGE_REG_CREDENTIAL}",
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASSWORD'
-                )]) {
-                    script.sh """
-                        echo user "$USER" pasword "$PASSWORD"
-                        podman login ${envVars.IMAGE_REG_HOST} --username ${USER} --password ${PASSWORD}
-                        podman push ${envVars.imagePath}:${envVars.tag}
-
-                        podman tag ${envVars.imagePath}:${envVars.tag} ${envVars.imagePath}:latest
-                        podman push ${envVars.imagePath}:latest
-                    """
-                }
-            }
-        }
-    }
-
-    def stageGenerateManifest() {
-        script.stage("Generate deployment yaml") {
-            script.container("envsubst") {
-                script.sh """
-                    set -a
-                    source ${envVars.baseDir}/deploy_env_vars
-                    set +a
-
-                    export tag=${envVars.tag}
-                    export image_pull_secret=${envVars.IMAGE_REG_PULL_SECRET}
-                    export image_pull_policy=${envVars.IMAGE_PULL_POLICY}
-                    export image_path=${envVars.imagePath}:${envVars.tag}
-
-                    if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
-                        export eureka_service_url=${envVars.eurekaServiceUrl}
-                    fi
-                    if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
-                        export config_server_fqdn=${envVars.configServerFQDN}
-                    fi
-
-                    envsubst < ${envVars.baseDir}/${envVars.manifest}.template > ${envVars.baseDir}/${envVars.manifest}
-                    cat ${envVars.baseDir}/${envVars.manifest}
-                """
-            }
-        }    
-    }
-
-    def stageDeploy() {
-        script.stage("Deploy") {
-            script.container("kubectl") {
-                script.sh "kubectl apply -f ${envVars.baseDir}/${envVars.manifest} -n ${envVars.namespace}"
-            }
-        }    
     }
 
     def notifySlack(STATUS, COLOR) {
@@ -378,4 +305,5 @@ class PipelineLibraries implements Serializable {
         
         return vulnerabilityCounts
     }
+
 }
