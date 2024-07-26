@@ -119,13 +119,13 @@ def checkSourceChanges() {
 }
 
 def setCICDVariables() {
-    commonFunctions.notifySlack("STARTED", "#FFFF00")
+    notifySlack("STARTED", "#FFFF00")
 
     env.baseDir = "${SRC_DIR}/${SUB_DIR}/deployment"
     def props = readProperties  file:"${baseDir}/deploy_env_vars"
     env.applicationName = props["application_name"]
     env.artifactoryFile = props["artifactory_file"]
-    env.tag = commonFunctions.getTimestamp()
+    env.tag = getTimestamp()
     env.namespace = props["namespace"]
     env.manifest = props["manifest"]
     env.imageScanSeverity = props["image_scan_severity"]
@@ -196,7 +196,7 @@ def stageVerifyQualityGate() {
             if (qg.status != 'OK') {
                 echo "SonarQube Quality Gate failed. Aborting the pipeline."
                 currentBuild.result = 'FAILURE'
-                commonFunctions.notifySlack("SonarQube Quality Gate failed.", "#FF0000")
+                notifySlack("SonarQube Quality Gate failed.", "#FF0000")
                 error "Pipeline aborted due to SonarQube Quality Gate failure: ${qg.status}"
             }
         }
@@ -275,12 +275,12 @@ def stageScanContainerImageVulnurability() {
                 echo "Trivy scan results:"
                 echo trivyOutput
 
-                def vulnerabilityCounts = commonFunctions.getVulnerabilityResult(trivyOutput)
+                def vulnerabilityCounts = getVulnerabilityResult(trivyOutput)
 
                 if (vulnerabilityCounts["CRITICAL"] > 0) {
                     echo "Critical vulnerabilities found. Aborting the pipeline."
                     currentBuild.result = 'FAILURE'
-                    commonFunctions.notifySlack("Vulnerability scan failed.", "#FF0000")
+                    notifySlack("Vulnerability scan failed.", "#FF0000")
                     error "Critical vulnerabilities found."
                 } else {
                     echo "No critical vulnerabilities found. Continuing the pipeline."
