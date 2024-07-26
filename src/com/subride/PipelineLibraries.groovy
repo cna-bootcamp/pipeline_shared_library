@@ -10,11 +10,10 @@ class PipelineLibraries implements Serializable {
     }
 
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
-    def setGlobalVariables(String serviceGroup, String serviceId, String version, String branch) {
+    def setGlobalVariables(String serviceGroup, String serviceId, String version) {
         envVars.SERVICE_GROUP = serviceGroup
         envVars.SERVICE_ID = serviceId
         envVars.SERVICE_VERSION = version
-        envVars.SERVICE_BRANCH = branch 
 
         envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
@@ -101,21 +100,19 @@ class PipelineLibraries implements Serializable {
         
         def changedFiles = []
         
-        // Get changed files
-        script.checkout([$class: 'GitSCM', branches: [[name: "*/${envVars.SERVICE_BRANCH}"]], extensions: [[$class: 'CloneOption', noTags: false, shallow: false, depth: 0]]])
-        def changeLogSets = script.currentBuild.changeSets
+        // Fetch the latest changes without checking out
+        script.checkout scm
         
-        for (int i = 0; i < changeLogSets.size(); i++) {
-            def entries = changeLogSets[i].items
-            for (int j = 0; j < entries.length; j++) {
-                def entry = entries[j]
-                def files = new ArrayList(entry.affectedFiles)
-                for (int k = 0; k < files.size(); k++) {
-                    def file = files[k]
-                    changedFiles.add(file.path)
-                }
-            }
-        }
+        // Get the commit hash of the last successful build
+        def lastSuccessfulCommit = script.sh(script: "git rev-parse ${script.env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: 'HEAD~1'}", returnStdout: true).trim()
+        
+        // Get the current commit hash
+        def currentCommit = script.sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+        
+        script.echo "Checking changes between ${lastSuccessfulCommit} and ${currentCommit}"
+        
+        // Get changed files between the last successful build and current build
+        changedFiles = script.sh(script: "git diff --name-only ${lastSuccessfulCommit} ${currentCommit}", returnStdout: true).split("\n")
         
         script.echo "Changed files: ${changedFiles}"
         
