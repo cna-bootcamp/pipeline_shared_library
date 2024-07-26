@@ -1,3 +1,4 @@
+//-- Pipeline 전역 변수 셋팅  
 def setGlobalVariables() {
     env.NFS_HOST=43.200.12.214
     env.NFS_DIR=data
@@ -12,6 +13,18 @@ def setGlobalVariables() {
     env.IMAGE_REG_ORG=hiondal
     env.JAVA_BINARY_DIR=build/classes/java/main
     env.SONAR_SERVER_ID=SonarQube
+}
+
+//-- 서비스의 소스 디렉토리 리턴  
+def getSourceDir(String serviceId) {
+    def sourceDirMap = [
+        'config': 'config',
+        'eureka': 'eureka',
+        'scg': 'scg',
+        // 추가적인 serviceId와 소스 디렉토리 매핑을 여기에 추가
+    ]
+    
+    return sourceDirMap.getOrDefault(serviceId, serviceId)
 }
 
 def notifySlack(STATUS, COLOR) {
