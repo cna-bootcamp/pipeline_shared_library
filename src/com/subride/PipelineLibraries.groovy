@@ -74,12 +74,15 @@ class PipelineLibraries implements Serializable {
     }
 
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
-    def setGlobalVariables(String serviceGroup, String serviceId, String version, String skipStages) {
-        envVars.SERVICE_GROUP = serviceGroup
-        //envVars.SERVICE_ID = serviceId
+    def setGlobalVariables() {
+        envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
         envVars.SERVICE_ID = script.params.SERVICE_ID
-        envVars.SERVICE_VERSION = version
-        envVars.SKIPSTAGES = skipStages
+        envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
+        envVars.NFS_HOST = script.params.NFS_HOST
+        envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
+        envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
+        envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
+        envVars.SKIPSTAGES = script.params.SKIPSTAGES
 
         envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
@@ -103,12 +106,6 @@ class PipelineLibraries implements Serializable {
         }
         envVars.PIPELINE_DIR = "pipeline"
         envVars.PIPELINE_ID = "${envVars.SRC_DIR}-${script.env.BUILD_NUMBER}"
-
-        // 상황에 맞게 변경 필요
-        envVars.NFS_HOST = "43.200.12.214"
-        envVars.IMAGE_REG_CREDENTIAL = "credential_dockerhub_ondal"
-        envVars.IMAGE_REG_HOST = "docker.io"
-        envVars.IMAGE_REG_ORG = "hiondal"
     }
 
     def getSourceDir() {
