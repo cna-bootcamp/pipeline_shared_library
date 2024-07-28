@@ -9,6 +9,117 @@ class PipelineLibraries implements Serializable {
         this.script = script
     }
 
+    def buildPipeline(String serviceGroup, String serviceId, String version) {
+        def hasChanges = false
+
+        script.pipeline {
+            agent any
+            options { quietPeriod(0) }
+
+            stages {
+                stage("Set Global variables") {
+                    steps {
+                        script {
+                            setGlobalVariables(serviceGroup, serviceId, version)
+                        }
+                    }
+                }
+
+                stage("Prepare Environment") {
+                    steps {
+                        script {
+                            hasChanges = prepareEnvironment()
+                            echo "End of Prepare Environment"
+                        }
+                    }
+                }
+
+                stage("Build and Deploy") {
+                    when { expression { return hasChanges } }
+              
+                    steps {
+                        script {
+                            def volumes = [
+                                nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
+                                serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+                            ]
+
+                            if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                                volumes.add(
+                                    nfsVolume(mountPath: "/home/gradle/.gradle", serverAddress: "${envVars.NFS_HOST}",
+                                    serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+                                )
+                            }
+
+                            podTemplate(label: "${envVars.PIPELINE_ID}",
+                                containers: [
+                                    containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
+                                    containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
+                                    containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
+                                    containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+                                    containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+                                ],
+                                volumes: volumes
+                            ) {
+                                node("${envVars.PIPELINE_ID}") {
+                                    notifySlack("STARTED", "#FFFF00")
+
+                                    stage("Get Source") { checkout scm }
+
+                                    setCICDVariables()
+
+                                    def skipStages = "sonar, trivy"
+
+                                    try {
+                                        stage("Build Jar") { buildJar() }
+
+                                        if(!skipStages.contains("sonar")) {
+                                            stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
+                                            stage("Verify Quality Gate") { verifyQualityGate() }
+                                        }
+                                  
+                                        stage("Build Container Image") { buildContainerImageForJava() }
+
+                                        if(!skipStages.contains("trivy")) {                                 
+                                            stage("Scan Image Vulnerability") { scanContainerImageVulnerability() }
+                                        }                                   
+
+                                        stage("Push Container Image") { pushContainerImage() }
+
+                                        stage("Generate Manifest") { generateManifest() }
+                                  
+                                        stage("Deploy") { deploy() }
+
+                                        notifySlack("${currentBuild.currentResult}", "#00FF00") 
+                                        echo "**** FINISH ALL STAGES : SUCCESS"
+                                    } catch(e) {
+                                        currentBuild.result = "FAILED"
+                                        notifySlack("${currentBuild.currentResult}", "#FF0000")
+                                        throw e
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                stage("Finalize") {
+                    steps {
+                        script {
+                            if (!hasChanges) {
+                                currentBuild.result = 'SUCCESS'
+                                currentBuild.description = "No pipeline performed because no sources changed"
+                                notifySlack("SKIPPED", "#A9A9A9")
+                                echo "No changes detected. Skipping the pipeline."
+                            }
+                            echo "Finish All processed !!!"   
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
     def setGlobalVariables(String serviceGroup, String serviceId, String version) {
         envVars.SERVICE_GROUP = serviceGroup
