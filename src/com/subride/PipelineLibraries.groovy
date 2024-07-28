@@ -35,17 +35,17 @@ class PipelineLibraries implements Serializable {
         envVars.SERVICE_GROUP_SUBRIDE = "subride"       //Service Group 명 for 구독관리 백엔드
         envVars.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"   //Service Group 명 for 구독관리 프론트엔드
 
-        envVars.SRC_DIR = getSourceDir()                //Service Group에 따른 소스 디렉토리를 셋팅
+        envVars.PROJECT_DIR = getProjectDir()                //Service Group에 따른 Project 디렉토리를 셋팅
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            envVars.SUB_DIR_BIZ = envVars.SRC_DIR + "-biz"
-            envVars.SIB_DIR_INFRA = envVars.SRC_DIR + "-infra"
+            envVars.SUB_DIR_BIZ = envVars.PROJECT_DIR + "-biz"
+            envVars.SIB_DIR_INFRA = envVars.PROJECT_DIR + "-infra"
         }
         envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
-        envVars.PIPELINE_ID = "${envVars.SRC_DIR}-${script.env.BUILD_NUMBER}"
+        envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
     }
 
-    //-- Service ID별 소스 디렉토리를 리턴  
-    def getSourceDir() {
+    //-- Service ID별 Project 디렉토리를 리턴  
+    def getProjectDir() {
         def sourceDirMap = [
             'config': 'config',
             'eureka': 'eureka',
@@ -91,9 +91,9 @@ class PipelineLibraries implements Serializable {
                                 ssh-keyscan -H ${envVars.NFS_HOST} >> ~/.ssh/known_hosts
 
                                 if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
-                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}"
+                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.PROJECT_DIR}"
                                 fi
-                                ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}"
+                                ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.PROJECT_DIR}"
                             """
                         }
                     }
@@ -122,8 +122,8 @@ class PipelineLibraries implements Serializable {
                 def files = entry.affectedFiles
                 for (int k = 0; k < files.size(); k++) {
                     def file = files[k]
-                    //script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
-                    if (file.path.startsWith("${envVars.SRC_DIR}/")) {
+                    //script.echo "Changed source => "+file.path + " <-> ${envVars.PROJECT_DIR}"
+                    if (file.path.startsWith("${envVars.PROJECT_DIR}/")) {
                         hasChangesInDirectory = true
                         break
                     }
@@ -138,13 +138,13 @@ class PipelineLibraries implements Serializable {
     def buildAndDeploy() {
         def volumes = [
             script.nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
-            serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+            serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.PROJECT_DIR}", readOnly: false)
         ]
 
         if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
             volumes.add(
                 script.nfsVolume(mountPath: "/home/gradle/.gradle", serverAddress: "${envVars.NFS_HOST}",
-                serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+                serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.PROJECT_DIR}", readOnly: false)
             )
         }
 
@@ -161,33 +161,44 @@ class PipelineLibraries implements Serializable {
             script.node("${envVars.PIPELINE_ID}") {
                 notifySlack("STARTED", "#FFFF00")
 
-                //script.stage("Get Source") { script.checkout script.scm }
+                //소스를 컨테이너 안으로 복사  
+                script.stage("Get Source") { script.checkout script.scm }
 
                 //CI/CD 실행을 위한 변수 셋팅
                 setCICDVariables()
 
-                def skipStages = "${envVars.SKIP_STAGES}"
+                def skipStages = "${envVars.SKIP_STAGES}"  //건너 띌 스테이지 지정(sonar와 trivy skip가능)
 
                 try {
+                    //Build: 실행Jar파일 Build
                     script.stage("Build Jar") { buildJar() }
 
                     if(!skipStages.contains("sonar")) {
+                        //Build: 소스품질 검사
                         script.stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
+
+                        //Build: Quality Gate 충족 검사
                         script.stage("Verify Quality Gate") { verifyQualityGate() }
                     }
             
+                    //Build: Build Container image
                     script.stage("Build Container Image") { buildContainerImageForJava() }
 
+                    //Build: image 보안 취약성 점검
                     if(!skipStages.contains("trivy")) {                                 
                         script.stage("Scan Image Vulnerability") { scanContainerImageVulnerability() }
                     }                                   
 
+                    //Release:  Push Container image
                     script.stage("Push Container Image") { pushContainerImage() }
 
+                    //Deploy: 배포 manifest 파일 생성
                     script.stage("Generate Manifest") { generateManifest() }
             
-                    //script.stage("Deploy") { deploy() }
+                    //Deploy: 배포
+                    script.stage("Deploy") { deploy() }
 
+                    //통보
                     script.currentBuild.result = "SUCCESS"
                     notifySlack("SUCESS", "#00FF00") 
                     script.echo "**** FINISH ALL STAGES : SUCCESS"
@@ -203,42 +214,60 @@ class PipelineLibraries implements Serializable {
 
     //-- CI/CD 실행을 위한 변수 셋팅
     def setCICDVariables() {
-        envVars.baseDir = getBaseDir()
-        def props = script.readProperties file:"${envVars.baseDir}/deploy_env_vars"
-        envVars.applicationName = props["application_name"]
-        envVars.artifactoryFile = props["artifactory_file"]
-        envVars.tag = getImageTag()
-        envVars.namespace = props["namespace"]
-        envVars.manifest = props["manifest"]
-        envVars.imageScanSeverity = props["image_scan_severity"]
-        envVars.sonarProjectKey = props["sonar_project_key"]
+        envVars.deployYamlDir = getdeployYamlDir()      //deployment yaml 파일이 있는 디렉토리 구함 
+        def props = script.readProperties file:"${envVars.deployYamlDir}/deploy_env_vars"
+        envVars.applicationName = props["application_name"] //서비스명
+        envVars.artifactoryFile = props["artifactory_file"] //서비스 실행 Jar명
+        envVars.tag = getImageTag()                         //Container image tag 구하기
+        envVars.namespace = props["namespace"]              //배포할 네임스페이스
+        envVars.manifest = props["manifest"]                //배포 yaml 파일명
+        envVars.imageScanSeverity = props["image_scan_severity"]    //점검할 이미지 보안 취약성 등급(CRITICAL,HIGH,MEDIUM)
+        envVars.sonarProjectKey = props["sonar_project_key"]    //SonarQube에 생성한 project key(보통 service id와 동일)
         envVars.imagePath = "${envVars.IMAGE_REG_HOST}/${envVars.IMAGE_REG_ORG}/${envVars.applicationName}"
 
-        envVars.eurekaServiceUrl = "http://eureka:18080/eureka/"
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            envVars.configServerFQDN = "http://config:18080"
+        envVars.eurekaServiceUrl = "http://eureka:18080/eureka/"        //Eureka 서버 Url
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {   
+            envVars.configServerFQDN = "http://config:18080"            //Config 서버 Url
         }
+    }
+    //-- image Tag를 동적으로 변경
+    def getImageTag() {
+        def dateFormat = new java.text.SimpleDateFormat("yyyyMMddHHmmss")
+        def currentDate = new Date()
+        def timestamp = dateFormat.format(currentDate)
+
+        //return timestamp
+        return envVars.SERVICE_VERSION      //현재는 버전을 리턴하나 실제 운영시에는 Timestamp를 리턴하게 변경 필요 
     }
 
-    def getBaseDir() {
+    //deployment yaml 파일이 있는 디렉토리 리턴
+    def getdeployYamlDir() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            return "${envVars.SRC_DIR}/${envVars.SUB_DIR_INFRA}/deployment"
+            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}/deployment"
         } else {
-            return "${envVars.SRC_DIR}/deployment"    
+            return "${envVars.PROJECT_DIR}/deployment"    
         }
     }
-    //Build: build jar
+    //-- Build: 실행Jar파일 Build
     def buildJar() {
-        def buildDir = getBuildDir()
+        def buildDir = getBuildDir()    //Project 디렉토리 하위의 Jar가 있는 디렉토리 구함
         script.container("gradle") {
             script.sh 'echo "Build jar under build directory"'
-            script.sh "gradle :${buildDir}:build -x test"
+            
+            //실행 Jar 파일 빌드
+            script.sh "gradle :${buildDir}:build -x test"   
         }
     }
 
     //-- Build: 소스품질 검사
     def sonarQubeAnalysisForJava() {
-        def javaBinaries = getJavaBinaries()
+        def javaBinaries = ""
+        if (envVars.SERVICE_GROUP==envVars.SERVICE_GROUP_SUBRIDE) {
+            javaBinaries = "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
+        } else {
+            javaBinaries =  "build/classes/java/main"
+        }
+
         script.container("gradle") {
             script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
                 script.sh """
@@ -250,15 +279,9 @@ class PipelineLibraries implements Serializable {
             }
         }
     }
-    def getJavaBinaries() {
-        if (envVars.SERVICE_GROUP==envVars.SERVICE_GROUP_SUBRIDE) {
-            return "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
-        } else {
-            return "build/classes/java/main"
-        }
-    }
 
     //-- Build: Quality Gate 충족 검사
+    //-- SonarQube의 Administrator에서 Web Hook 등록해야 함
     def verifyQualityGate() {
         script.timeout(time: 10, unit: 'MINUTES') {
             def qg = script.waitForQualityGate()
@@ -317,6 +340,21 @@ class PipelineLibraries implements Serializable {
             }
         }
     }
+    //-- image vulnerability 결과를 파싱하여 심각도 레벨별 count를 구함
+    def getVulnerabilityResult(trivyOutput) {
+        def vulnerabilityCounts = [:]
+        def totalLine = trivyOutput.readLines().find { it.startsWith("Total:") }
+        script.echo "Vulnerability: ${totalLine}"
+        if (totalLine) {
+            def countsPart = (totalLine =~ /\((.+)\)/)[0][1]
+            countsPart.split(",").each { part ->
+                def (severity, count) = part.trim().split(":")
+                vulnerabilityCounts[severity] = count.trim().toInteger()
+            }
+        }
+        
+        return vulnerabilityCounts
+    }
 
     //-- Release:  Push Container image
     def pushContainerImage() {
@@ -343,7 +381,7 @@ class PipelineLibraries implements Serializable {
         script.container("envsubst") {
             script.sh """
                 set -a
-                source ${envVars.baseDir}/deploy_env_vars
+                source ${envVars.deployYamlDir}/deploy_env_vars
                 set +a
 
                 export tag=${envVars.tag}
@@ -358,8 +396,8 @@ class PipelineLibraries implements Serializable {
                     export config_server_fqdn=${envVars.configServerFQDN}
                 fi
 
-                envsubst < ${envVars.baseDir}/${envVars.manifest}.template > ${envVars.baseDir}/${envVars.manifest}
-                cat ${envVars.baseDir}/${envVars.manifest}
+                envsubst < ${envVars.deployYamlDir}/${envVars.manifest}.template > ${envVars.deployYamlDir}/${envVars.manifest}
+                cat ${envVars.deployYamlDir}/${envVars.manifest}
             """
         }
     }
@@ -367,16 +405,16 @@ class PipelineLibraries implements Serializable {
     //-- Deploy: 배포
     def deploy() {
         script.container("kubectl") {
-            script.sh "kubectl apply -f ${envVars.baseDir}/${envVars.manifest} -n ${envVars.namespace}"
+            //script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
     }
 
     //-- jar빌드와 이미지 빌드 시 기준 디렉토리 계산
     def getBuildDir() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
-            return "${envVars.SRC_DIR}"
+            return "${envVars.PROJECT_DIR}"
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
-            return "${envVars.SRC_DIR}/${envVars.SUB_DIR_INFRA}"
+            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
             return "."
         } else {
@@ -388,31 +426,6 @@ class PipelineLibraries implements Serializable {
     def notifySlack(STATUS, COLOR) {
         // Implement Slack notification logic here
         // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
-    }
-
-    //-- image Tag를 동적으로 변경
-    def getImageTag() {
-        def dateFormat = new java.text.SimpleDateFormat("yyyyMMddHHmmss")
-        def currentDate = new Date()
-        def timestamp = dateFormat.format(currentDate)
-
-        return envVars.SERVICE_VERSION
-    }
-
-    //-- image vulnerability 결과를 파싱하여 심각도 레벨별 count를 구함
-    def getVulnerabilityResult(trivyOutput) {
-        def vulnerabilityCounts = [:]
-        def totalLine = trivyOutput.readLines().find { it.startsWith("Total:") }
-        script.echo "Vulnerability: ${totalLine}"
-        if (totalLine) {
-            def countsPart = (totalLine =~ /\((.+)\)/)[0][1]
-            countsPart.split(",").each { part ->
-                def (severity, count) = part.trim().split(":")
-                vulnerabilityCounts[severity] = count.trim().toInteger()
-            }
-        }
-        
-        return vulnerabilityCounts
     }
 
 }
