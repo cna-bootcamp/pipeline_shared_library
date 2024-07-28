@@ -13,8 +13,6 @@ class PipelineLibraries implements Serializable {
         def hasChanges = false
 
         script.pipeline {
-            options { quietPeriod(0) }
-
             stages {
                 stage("Set Global variables") {
                     steps {
