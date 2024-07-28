@@ -39,7 +39,7 @@ class PipelineLibraries implements Serializable {
 
                 setCICDVariables()
 
-                def skipStages = "sonar, trivy"
+                def skipStages = "${envVars.SKIP_STAGES}"
 
                 try {
                     script.stage("Build Jar") { buildJar() }
@@ -74,11 +74,12 @@ class PipelineLibraries implements Serializable {
     }
 
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
-    def setGlobalVariables(String serviceGroup, String serviceId, String version) {
+    def setGlobalVariables(String serviceGroup, String serviceId, String version, String skipStages) {
         envVars.SERVICE_GROUP = serviceGroup
         envVars.SERVICE_ID = serviceId
         envVars.SERVICE_VERSION = version
-
+        envVars.SKIPSTAGES = skipStages
+        
         envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
 
