@@ -127,7 +127,7 @@ class PipelineLibraries implements Serializable {
         script.stage("Check Source Changes") {
             hasChanges = checkSourceChanges()            
         }
-        
+        script.echo "********* Changes Source => ${hasChanges}"
         if (!hasChanges) return hasChanges
 
         script.podTemplate(
