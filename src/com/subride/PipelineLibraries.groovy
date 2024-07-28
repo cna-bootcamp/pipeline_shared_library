@@ -35,7 +35,7 @@ class PipelineLibraries implements Serializable {
             script.node("${envVars.PIPELINE_ID}") {
                 notifySlack("STARTED", "#FFFF00")
 
-                script.stage("Get Source") { checkout scm }
+                script.stage("Get Source") { script.checkout script.scm }
 
                 setCICDVariables()
 
