@@ -115,6 +115,12 @@ class PipelineLibraries implements Serializable {
             'config': 'config',
             'eureka': 'eureka',
             'scg': 'scg',
+            'member': 'member',
+            'subrecommend': 'subrecommend',
+            'mysub': 'mysub',
+            'mygrp': 'mygrp',
+            'transfer': 'transfer',
+            'subride-front': '.'
         ]
         
         return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
@@ -177,6 +183,7 @@ class PipelineLibraries implements Serializable {
                 def files = entry.affectedFiles
                 for (int k = 0; k < files.size(); k++) {
                     def file = files[k]
+                    script.echo "Changed source => "+file.path 
                     if (file.path.startsWith("${envVars.SRC_DIR}/")) {
                         hasChangesInDirectory = true
                         break
@@ -185,11 +192,7 @@ class PipelineLibraries implements Serializable {
             }
         }
 
-        if (!hasChangesInDirectory) {
-            return false
-        }
-
-        return true
+        return hasChangesInDirectory
     }
 
     //-- 실행을 위한 변수 셋팅
