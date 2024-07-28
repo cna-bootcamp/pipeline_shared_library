@@ -12,102 +12,109 @@ class PipelineLibraries implements Serializable {
     def buildPipeline(String serviceGroup, String serviceId, String version) {
         def hasChanges = false
 
-        stage("Set Global variables") {
-            steps {
-                script {
-                    setGlobalVariables(serviceGroup, serviceId, version)
-                }
-            }
-        }
+        script.pipeline {
+            agent any
+            options { quietPeriod(0) }
 
-        stage("Prepare Environment") {
-            steps {
-                script {
-                    hasChanges = prepareEnvironment()
-                    echo "End of Prepare Environment"
-                }
-            }
-        }
-
-        stage("Build and Deploy") {
-            when { expression { return hasChanges } }
-        
-            steps {
-                script {
-                    def volumes = [
-                        nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
-                        serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
-                    ]
-
-                    if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
-                        volumes.add(
-                            nfsVolume(mountPath: "/home/gradle/.gradle", serverAddress: "${envVars.NFS_HOST}",
-                            serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
-                        )
+            script.stages {
+                script.stage("Set Global variables") {
+                    script.steps {
+                        script {
+                            setGlobalVariables(serviceGroup, serviceId, version)
+                        }
                     }
+                }
 
-                    podTemplate(label: "${envVars.PIPELINE_ID}",
-                        containers: [
-                            containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
-                            containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
-                            containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
-                            containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
-                            containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
-                        ],
-                        volumes: volumes
-                    ) {
-                        node("${envVars.PIPELINE_ID}") {
-                            notifySlack("STARTED", "#FFFF00")
+                script.stage("Prepare Environment") {
+                    script.steps {
+                        script {
+                            hasChanges = prepareEnvironment()
+                            echo "End of Prepare Environment"
+                        }
+                    }
+                }
 
-                            stage("Get Source") { checkout scm }
+                script.stage("Build and Deploy") {
+                    when { expression { return hasChanges } }
+            
+                    script.steps {
+                        script {
+                            def volumes = [
+                                nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
+                                serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+                            ]
 
-                            setCICDVariables()
+                            if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                                volumes.add(
+                                    nfsVolume(mountPath: "/home/gradle/.gradle", serverAddress: "${envVars.NFS_HOST}",
+                                    serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}", readOnly: false)
+                                )
+                            }
 
-                            def skipStages = "sonar, trivy"
+                            script.podTemplate(label: "${envVars.PIPELINE_ID}",
+                                containers: [
+                                    containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
+                                    containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
+                                    containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
+                                    containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+                                    containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+                                ],
+                                volumes: volumes
+                            ) {
+                                script.node("${envVars.PIPELINE_ID}") {
+                                    notifySlack("STARTED", "#FFFF00")
 
-                            try {
-                                stage("Build Jar") { buildJar() }
+                                    script.stage("Get Source") { checkout scm }
 
-                                if(!skipStages.contains("sonar")) {
-                                    stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
-                                    stage("Verify Quality Gate") { verifyQualityGate() }
+                                    setCICDVariables()
+
+                                    def skipStages = "sonar, trivy"
+
+                                    try {
+                                        script.stage("Build Jar") { buildJar() }
+
+                                        if(!skipStages.contains("sonar")) {
+                                            script.stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
+                                            script.stage("Verify Quality Gate") { verifyQualityGate() }
+                                        }
+                                
+                                        script.stage("Build Container Image") { buildContainerImageForJava() }
+
+                                        if(!skipStages.contains("trivy")) {                                 
+                                            script.stage("Scan Image Vulnerability") { scanContainerImageVulnerability() }
+                                        }                                   
+
+                                        script.stage("Push Container Image") { pushContainerImage() }
+
+                                        script.stage("Generate Manifest") { generateManifest() }
+                                
+                                        script.stage("Deploy") { deploy() }
+
+                                        notifySlack("${currentBuild.currentResult}", "#00FF00") 
+                                        echo "**** FINISH ALL STAGES : SUCCESS"
+                                    } catch(e) {
+                                        currentBuild.result = "FAILED"
+                                        notifySlack("${currentBuild.currentResult}", "#FF0000")
+                                        throw e
+                                    }
                                 }
-                            
-                                stage("Build Container Image") { buildContainerImageForJava() }
-
-                                if(!skipStages.contains("trivy")) {                                 
-                                    stage("Scan Image Vulnerability") { scanContainerImageVulnerability() }
-                                }                                   
-
-                                stage("Push Container Image") { pushContainerImage() }
-
-                                stage("Generate Manifest") { generateManifest() }
-                            
-                                stage("Deploy") { deploy() }
-
-                                notifySlack("${currentBuild.currentResult}", "#00FF00") 
-                                echo "**** FINISH ALL STAGES : SUCCESS"
-                            } catch(e) {
-                                currentBuild.result = "FAILED"
-                                notifySlack("${currentBuild.currentResult}", "#FF0000")
-                                throw e
                             }
                         }
                     }
                 }
-            }
-        }
 
-        stage("Finalize") {
-            steps {
-                script {
-                    if (!hasChanges) {
-                        currentBuild.result = 'SUCCESS'
-                        currentBuild.description = "No pipeline performed because no sources changed"
-                        notifySlack("SKIPPED", "#A9A9A9")
-                        echo "No changes detected. Skipping the pipeline."
+                script.stage("Finalize") {
+                    script.steps {
+                        script {
+                            if (!hasChanges) {
+                                script.currentBuild.result = 'SUCCESS'
+                                script.currentBuild.description = "No pipeline performed because no sources changed"
+                                notifySlack("SKIPPED", "#A9A9A9")
+                                echo "No changes detected. Skipping the pipeline."
+                            }
+                            echo "Finish All processed !!!"   
+                        }
                     }
-                    echo "Finish All processed !!!"   
                 }
             }
         }
