@@ -76,7 +76,8 @@ class PipelineLibraries implements Serializable {
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
     def setGlobalVariables(String serviceGroup, String serviceId, String version, String skipStages) {
         envVars.SERVICE_GROUP = serviceGroup
-        envVars.SERVICE_ID = serviceId
+        //envVars.SERVICE_ID = serviceId
+        envVars.SERVICE_ID = script.params.SERVICE_ID
         envVars.SERVICE_VERSION = version
         envVars.SKIPSTAGES = skipStages
 
@@ -183,7 +184,7 @@ class PipelineLibraries implements Serializable {
                 def files = entry.affectedFiles
                 for (int k = 0; k < files.size(); k++) {
                     def file = files[k]
-                    script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
+                    //script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
                     if (file.path.startsWith("${envVars.SRC_DIR}/")) {
                         hasChangesInDirectory = true
                         break
