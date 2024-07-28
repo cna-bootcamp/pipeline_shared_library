@@ -24,11 +24,11 @@ class PipelineLibraries implements Serializable {
 
         script.podTemplate(label: "${envVars.PIPELINE_ID}",
             containers: [
-                containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
-                containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
-                containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
-                containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
-                containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+                script.containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
+                script.containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
+                script.containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
+                script.containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+                script.containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
             ],
             volumes: volumes
         ) {
@@ -70,16 +70,6 @@ class PipelineLibraries implements Serializable {
                 }
             }
         }
-    }
-
-    def finilizePipeline() {
-        if (!hasChanges) {
-            script.currentBuild.result = 'SUCCESS'
-            script.currentBuild.description = "No pipeline performed because no sources changed"
-            notifySlack("SKIPPED", "#A9A9A9")
-            script.echo "No changes detected. Skipping the pipeline."
-        }
-        script.echo "Finish All processed !!!"   
     }
 
     //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
