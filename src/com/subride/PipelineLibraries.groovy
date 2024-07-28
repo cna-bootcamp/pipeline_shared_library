@@ -59,7 +59,7 @@ class PipelineLibraries implements Serializable {
 
                     script.stage("Generate Manifest") { generateManifest() }
             
-                    script.stage("Deploy") { deploy() }
+                    //script.stage("Deploy") { deploy() }
 
                     script.currentBuild.result = "SUCCESS"
                     notifySlack("SUCESS", "#00FF00") 
@@ -79,7 +79,7 @@ class PipelineLibraries implements Serializable {
         envVars.SERVICE_ID = serviceId
         envVars.SERVICE_VERSION = version
         envVars.SKIPSTAGES = skipStages
-        
+
         envVars.NFS_DIR = "data/nfs"
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
 
