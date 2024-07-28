@@ -13,7 +13,7 @@ class PipelineLibraries implements Serializable {
         def hasChanges = false
 
         script.pipeline {
-            script.agent any
+            script.agent script.any
             script.options { quietPeriod(0) }
 
             script.stages {
