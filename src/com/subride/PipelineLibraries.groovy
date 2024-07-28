@@ -61,11 +61,12 @@ class PipelineLibraries implements Serializable {
             
                     script.stage("Deploy") { deploy() }
 
-                    notifySlack("${currentBuild.currentResult}", "#00FF00") 
+                    script.currentBuild.result = "SUCCESS"
+                    notifySlack("SUCESS", "#00FF00") 
                     echo "**** FINISH ALL STAGES : SUCCESS"
                 } catch(e) {
                     script.currentBuild.result = "FAILED"
-                    notifySlack("${currentBuild.currentResult}", "#FF0000")
+                    notifySlack("FAILED", "#FF0000")
                     throw e
                 }
             }
@@ -376,7 +377,6 @@ class PipelineLibraries implements Serializable {
     //-- Slack으로 통지  
     def notifySlack(STATUS, COLOR) {
         // Implement Slack notification logic here
-        // For example:
         // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
     }
 
