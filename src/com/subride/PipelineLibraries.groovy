@@ -183,7 +183,7 @@ class PipelineLibraries implements Serializable {
                 def files = entry.affectedFiles
                 for (int k = 0; k < files.size(); k++) {
                     def file = files[k]
-                    script.echo "Changed source => "+file.path 
+                    script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
                     if (file.path.startsWith("${envVars.SRC_DIR}/")) {
                         hasChangesInDirectory = true
                         break
