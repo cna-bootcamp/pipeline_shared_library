@@ -63,7 +63,7 @@ class PipelineLibraries implements Serializable {
 
                     script.currentBuild.result = "SUCCESS"
                     notifySlack("SUCESS", "#00FF00") 
-                    echo "**** FINISH ALL STAGES : SUCCESS"
+                    script.echo "**** FINISH ALL STAGES : SUCCESS"
                 } catch(e) {
                     script.currentBuild.result = "FAILED"
                     notifySlack("FAILED", "#FF0000")
