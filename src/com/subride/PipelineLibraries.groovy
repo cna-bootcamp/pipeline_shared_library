@@ -9,6 +9,132 @@ class PipelineLibraries implements Serializable {
         this.script = script
     }
 
+    //-- 전역변수 셋팅: script.params로 시작하는 변수는 파이프라인 설정에서 값을 지정해야 함 
+    def setGlobalVariables() {
+        envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
+        envVars.SERVICE_ID = script.params.SERVICE_ID
+        envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
+        envVars.NFS_HOST = script.params.NFS_HOST
+        envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
+        envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
+        envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
+        envVars.SKIPSTAGES = script.params.SKIPSTAGES
+
+        envVars.NFS_DIR = "data/nfs"                    //NFS 공유 디렉토리
+        envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"      //NFS 서버 접근 Credential(ssh username with private key 타입)
+
+        envVars.GRADLE_CACHE_DIR = "gradle"             //Gradle library 캐싱 디렉토리
+        envVars.TRIVY_CACHE_DIR = "trivy-cache"         //Trivy 캐싱 디렉토리
+        envVars.IMAGE_REG_PULL_SECRET = "dockerhub"     //image pull secret
+        envVars.IMAGE_PULL_POLICY = "Always"            //Image Pull policy
+        envVars.BUILD_LIB_DIR = "build/libs"            //실행Jar 디렉토리
+        envVars.JAVA_BINARY_DIR = "build/classes/java/main" //class파일 디렉토리(SonqrQube에서 소스검사 때 사용)
+        envVars.SONAR_SERVER_ID = "SonarQube"           //Jenkins 시스템 설정에 이 이름으로  SonarQube서버 정보 설정해야 함
+
+        envVars.SERVICE_GROUP_SC = "sc"                 //Service Group 명 for Spring Cloud Services
+        envVars.SERVICE_GROUP_SUBRIDE = "subride"       //Service Group 명 for 구독관리 백엔드
+        envVars.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"   //Service Group 명 for 구독관리 프론트엔드
+
+        envVars.SRC_DIR = getSourceDir()                //Service Group에 따른 소스 디렉토리를 셋팅
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
+            envVars.SUB_DIR_BIZ = envVars.SRC_DIR + "-biz"
+            envVars.SIB_DIR_INFRA = envVars.SRC_DIR + "-infra"
+        }
+        envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
+        envVars.PIPELINE_ID = "${envVars.SRC_DIR}-${script.env.BUILD_NUMBER}"
+    }
+
+    //-- Service ID별 소스 디렉토리를 리턴  
+    def getSourceDir() {
+        def sourceDirMap = [
+            'config': 'config',
+            'eureka': 'eureka',
+            'scg': 'scg',
+            'member': 'member',
+            'subrecommend': 'subrecommend',
+            'mysub': 'mysub',
+            'mygrp': 'mygrp',
+            'transfer': 'transfer',
+            'subride-front': '.'
+        ]
+        
+        return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
+    }
+
+    //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성  
+    def prepareEnvironment() {
+        def hasChanges = true
+
+        //---------- 소스변경 검사 
+        script.stage("Check Source Changes") {
+            hasChanges = checkSourceChanges()            
+        }
+        script.echo "********* Changes Source => ${hasChanges}"
+        if (!hasChanges) return hasChanges
+        //--------------------------------
+
+        //-------- NFS서버의 공유 디렉토리 하위에 캐싱 디렉토리 생성  ---
+        script.podTemplate(
+            label: "${envVars.PIPELINE_ID}",
+            containers: [
+                script.containerTemplate(name: 'ssh', image: 'kroniak/ssh-client', command: 'cat', ttyEnabled: true),
+            ]
+        )
+        {
+            script.node("${envVars.PIPELINE_ID}") {
+                //-- chching을 위해 NFS볼륨 마운트
+                script.stage("Prepare Cache Volumes") {
+                    script.container("ssh") {
+                        script.withCredentials([script.sshUserPrivateKey(credentialsId: "${envVars.NFS_CREDENTIAL}", keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
+                            script.sh """
+                                mkdir -p ~/.ssh
+                                ssh-keyscan -H ${envVars.NFS_HOST} >> ~/.ssh/known_hosts
+
+                                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
+                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}"
+                                fi
+                                ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}"
+                            """
+                        }
+                    }
+                }
+
+            }            
+        }
+        //----------------------------------------------
+
+        return hasChanges
+    }
+
+    //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
+    def checkSourceChanges() {
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
+
+        script.checkout script.scm 
+
+        def changeLogSets = script.currentBuild.changeSets
+        def hasChangesInDirectory = false
+
+        for (int i = 0; i < changeLogSets.size(); i++) {
+            def entries = changeLogSets[i].items
+            for (int j = 0; j < entries.length; j++) {
+                def entry = entries[j]
+                def files = entry.affectedFiles
+                for (int k = 0; k < files.size(); k++) {
+                    def file = files[k]
+                    //script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
+                    if (file.path.startsWith("${envVars.SRC_DIR}/")) {
+                        hasChangesInDirectory = true
+                        break
+                    }
+                }
+            }
+        }
+
+        return hasChangesInDirectory
+    }
+
+    //=================== CI/CD 메인 처리 함수 ============================
     def buildAndDeploy() {
         def volumes = [
             script.nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
@@ -35,8 +161,9 @@ class PipelineLibraries implements Serializable {
             script.node("${envVars.PIPELINE_ID}") {
                 notifySlack("STARTED", "#FFFF00")
 
-                script.stage("Get Source") { script.checkout script.scm }
+                //script.stage("Get Source") { script.checkout script.scm }
 
+                //CI/CD 실행을 위한 변수 셋팅
                 setCICDVariables()
 
                 def skipStages = "${envVars.SKIP_STAGES}"
@@ -72,128 +199,9 @@ class PipelineLibraries implements Serializable {
             }
         }
     }
+    //====================================================================
 
-    //--전역변수 셋팅: 서비스그룹, 서비스ID, 버전
-    def setGlobalVariables() {
-        envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
-        envVars.SERVICE_ID = script.params.SERVICE_ID
-        envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
-        envVars.NFS_HOST = script.params.NFS_HOST
-        envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
-        envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
-        envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
-        envVars.SKIPSTAGES = script.params.SKIPSTAGES
-
-        envVars.NFS_DIR = "data/nfs"
-        envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"
-
-        envVars.GRADLE_CACHE_DIR = "gradle"
-        envVars.TRIVY_CACHE_DIR = "trivy-cache"
-        envVars.IMAGE_REG_PULL_SECRET = "dockerhub"
-        envVars.IMAGE_PULL_POLICY = "Always"
-        envVars.BUILD_LIB_DIR = "build/libs"
-        envVars.JAVA_BINARY_DIR = "build/classes/java/main"
-        envVars.SONAR_SERVER_ID = "SonarQube"
-
-        envVars.SERVICE_GROUP_SC = "sc"
-        envVars.SERVICE_GROUP_SUBRIDE = "subride"
-        envVars.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"
-
-        envVars.SRC_DIR = getSourceDir()
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            envVars.SUB_DIR_BIZ = envVars.SRC_DIR + "-biz"
-            envVars.SIB_DIR_INFRA = envVars.SRC_DIR + "-infra"
-        }
-        envVars.PIPELINE_DIR = "pipeline"
-        envVars.PIPELINE_ID = "${envVars.SRC_DIR}-${script.env.BUILD_NUMBER}"
-    }
-
-    def getSourceDir() {
-        def sourceDirMap = [
-            'config': 'config',
-            'eureka': 'eureka',
-            'scg': 'scg',
-            'member': 'member',
-            'subrecommend': 'subrecommend',
-            'mysub': 'mysub',
-            'mygrp': 'mygrp',
-            'transfer': 'transfer',
-            'subride-front': '.'
-        ]
-        
-        return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
-    }
-
-    //-- 실행환경 준비
-    def prepareEnvironment() {
-        def hasChanges = true
-        //-- 소스변경 검사 
-        script.stage("Check Source Changes") {
-            hasChanges = checkSourceChanges()            
-        }
-        script.echo "********* Changes Source => ${hasChanges}"
-        if (!hasChanges) return hasChanges
-
-        script.podTemplate(
-            label: "${envVars.PIPELINE_ID}",
-            containers: [
-                script.containerTemplate(name: 'ssh', image: 'kroniak/ssh-client', command: 'cat', ttyEnabled: true),
-            ]
-        )
-        {
-            script.node("${envVars.PIPELINE_ID}") {
-                //-- chching을 위해 NFS볼륨 마운트
-                script.stage("Prepare Cache Volumes") {
-                    script.container("ssh") {
-                        script.withCredentials([script.sshUserPrivateKey(credentialsId: "${envVars.NFS_CREDENTIAL}", keyFileVariable: 'SSH_KEY_FILE', usernameVariable: 'SSH_USER')]) {
-                            script.sh """
-                                mkdir -p ~/.ssh
-                                ssh-keyscan -H ${envVars.NFS_HOST} >> ~/.ssh/known_hosts
-
-                                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
-                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SRC_DIR}"
-                                fi
-                                ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SRC_DIR}"
-                            """
-                        }
-                    }
-                }
-
-            }            
-        }
-
-        return hasChanges
-    }
-
-    //---- 소스 변경 여부 검사
-    def checkSourceChanges() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true
-
-        script.checkout script.scm 
-
-        def changeLogSets = script.currentBuild.changeSets
-        def hasChangesInDirectory = false
-
-        for (int i = 0; i < changeLogSets.size(); i++) {
-            def entries = changeLogSets[i].items
-            for (int j = 0; j < entries.length; j++) {
-                def entry = entries[j]
-                def files = entry.affectedFiles
-                for (int k = 0; k < files.size(); k++) {
-                    def file = files[k]
-                    //script.echo "Changed source => "+file.path + " <-> ${envVars.SRC_DIR}"
-                    if (file.path.startsWith("${envVars.SRC_DIR}/")) {
-                        hasChangesInDirectory = true
-                        break
-                    }
-                }
-            }
-        }
-
-        return hasChangesInDirectory
-    }
-
-    //-- 실행을 위한 변수 셋팅
+    //-- CI/CD 실행을 위한 변수 셋팅
     def setCICDVariables() {
         envVars.baseDir = getBaseDir()
         def props = script.readProperties file:"${envVars.baseDir}/deploy_env_vars"
