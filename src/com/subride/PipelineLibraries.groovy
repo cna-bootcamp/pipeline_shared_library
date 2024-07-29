@@ -23,7 +23,7 @@ class PipelineLibraries implements Serializable {
         envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
         envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
         envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
-        envVars.SKIPSTAGES = script.params.SKIP_STAGES
+        envVars.SKIP_STAGES = script.params.SKIP_STAGES
 
         envVars.NFS_DIR = "data/nfs"                    //NFS 공유 디렉토리
         envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"      //NFS 서버 접근 Credential(ssh username with private key 타입)
