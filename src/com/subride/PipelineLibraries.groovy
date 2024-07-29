@@ -25,6 +25,7 @@ class PipelineLibraries implements Serializable {
             envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
             envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
             envVars.SKIP_STAGES = script.params.SKIP_STAGES
+            envVars.EXPORT_PORT = script.params.EXPORT_PORT
 
             envVars.NFS_DIR = "data/nfs"                    //NFS 공유 디렉토리
             envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"      //NFS 서버 접근 Credential(ssh username with private key 타입)
@@ -62,6 +63,9 @@ class PipelineLibraries implements Serializable {
         if (script.params.IMAGE_REG_HOST == "") return false
         if (script.params.IMAGE_REG_CREDENTIAL == "") return false
         if (script.params.IMAGE_REG_ORG == "") return false
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
+            if (script.params.EXPORT_PORT == "") return false
+        }
 
         return true
     }
@@ -155,7 +159,6 @@ class PipelineLibraries implements Serializable {
                         }
                     }
                 }
-
             }            
         }
         //----------------------------------------------
@@ -164,6 +167,19 @@ class PipelineLibraries implements Serializable {
 
     //=================== CI/CD 메인 처리 함수 ============================
     def buildAndDeploy() {
+        def containers = [
+            script.containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
+            script.containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
+            script.containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+            script.containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+        ]
+        if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+            containers.add(script.containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"))
+        } else {
+            containers.add(script.containerTemplate(name: "node", image: "node:22.2.0-alpine3.20", ttyEnabled: true, command: "cat"))
+            containers.add(script.containerTemplate(name: 'sonar-scanner', image: 'sonarsource/sonar-scanner-cli', ttyEnabled: true, command: 'cat'))
+        }
+
         def volumes = [
             script.nfsVolume(mountPath: "/${envVars.TRIVY_CACHE_DIR}", serverAddress: "${envVars.NFS_HOST}",
             serverPath: "/${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.PROJECT_DIR}", readOnly: false)
@@ -177,13 +193,7 @@ class PipelineLibraries implements Serializable {
         }
 
         script.podTemplate(label: "${envVars.PIPELINE_ID}",
-            containers: [
-                script.containerTemplate(name: "trivy", image: "aquasec/trivy", ttyEnabled: true, command: "cat"),
-                script.containerTemplate(name: "kubectl", image: "lachlanevenson/k8s-kubectl", command: "cat", ttyEnabled: true),
-                script.containerTemplate(name: "gradle", image: "gradle:jdk17", ttyEnabled: true, command: "cat"),
-                script.containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
-                script.containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
-            ],
+            containers: containers,
             volumes: volumes
         ) {
             script.node("${envVars.PIPELINE_ID}") {
@@ -202,16 +212,18 @@ class PipelineLibraries implements Serializable {
                         //Build: 실행Jar파일 Build
                         script.stage("Build Jar") { buildJar() }
                     } else {
-
+                        script.stage("Build Scripts") { buildScripts() }
                     }
                     
 
                     if(!skipStages.contains("sonar")) {
                         //Build: 소스품질 검사
-                        if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
-                            script.stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
-                        } else {
-
+                        script.stage("SonarQube Analysis") {
+                            if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                                sonarQubeAnalysisForJava()
+                            } else {
+                                sonarQubeAnalysisForScripts()
+                            }
                         }
 
                         //Build: Quality Gate 충족 검사
@@ -219,10 +231,12 @@ class PipelineLibraries implements Serializable {
                     }
             
                     //Build: Build Container image
-                    if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
-                         script.stage("Build Container Image") { buildContainerImageForJava() }
-                    } else {
-
+                    script.stage("Build Container Image") { 
+                        if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                            buildContainerImageForJava() 
+                        } else {
+                            buildContainerImageForScripts()
+                        }
                     }
 
                     //Build: image 보안 취약성 점검
@@ -289,6 +303,7 @@ class PipelineLibraries implements Serializable {
             return "${envVars.PROJECT_DIR}/deployment"    
         }
     }
+
     //-- Build: 실행Jar파일 Build
     def buildJar() {
         def buildDir = ""
@@ -306,13 +321,23 @@ class PipelineLibraries implements Serializable {
         }
     }
 
-    //-- Build: 소스품질 검사
+    //--Build: Scripts 파일 Build
+    def buildScripts() {
+        script.container("node") {
+            script.sh """
+                npm install
+                npm run build --watch --watch-options-aggregate-timeout 1000
+            """
+        }
+    }
+
+    //-- Build: 소스품질 검사(Java)
     def sonarQubeAnalysisForJava() {
         def javaBinaries = ""
-        if (envVars.SERVICE_GROUP==envVars.SERVICE_GROUP_SUBRIDE) {
-            javaBinaries = "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
-        } else {
+        if (envVars.SERVICE_ID=="transfer") {
             javaBinaries =  "build/classes/java/main"
+        } else {
+            javaBinaries = "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
         }
 
         script.container("gradle") {
@@ -327,6 +352,18 @@ class PipelineLibraries implements Serializable {
         }
     }
 
+    //-- Build: 소스품질 검사(Scripts)
+    def sonarQubeAnalysisForScripts() {
+        script.container("sonar-scanner") {
+            //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
+            withSonarQubeEnv("${SONAR_SERVER_ID}") {
+                sh """
+                    sonar-scanner
+                """
+            }
+        }       
+    }
+ 
     //-- Build: Quality Gate 충족 검사
     //-- SonarQube의 Administrator에서 Web Hook 등록해야 함
     def verifyQualityGate() {
@@ -341,7 +378,7 @@ class PipelineLibraries implements Serializable {
         }
     }
 
-    //-- Build: Build Container image
+    //-- Build: Build Container image(Java)
     def buildContainerImageForJava() {
         def buildBaseDir = getBuildBaseDir()
         script.container("podman") {
@@ -350,7 +387,21 @@ class PipelineLibraries implements Serializable {
                     -t ${envVars.imagePath}:${envVars.tag} \
                     --build-arg BUILD_LIB_DIR=${envVars.BUILD_LIB_DIR} \
                     --build-arg ARTIFACTORY_FILE=${envVars.artifactoryFile} \
-                        ${buildBaseDir}
+                    ${buildBaseDir}
+            """
+        }
+    }
+    //-- Build: Build Container image(Scripts)
+    def buildContainerImageForScripts() {
+        def buildBaseDir = getBuildBaseDir()
+        script.container("podman") {
+            script.sh """
+                podman build -f ${envVars.PIPELINE_DIR}/Dockerfile \
+                    -t ${envVars.imagePath}:${envVars.tag} \
+                    --build-arg PROJECT_FOLDER=${envVars.PROJECT_DIR} \
+                    --build-arg BUILD_FOLDER=${envVars.PIPELINE_DIR} \
+                    --build-arg EXPORT_PORT=${envVars.EXPORT_PORT} \
+                    ${buildBaseDir}
             """
         }
     }
