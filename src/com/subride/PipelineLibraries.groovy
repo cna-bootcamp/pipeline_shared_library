@@ -80,32 +80,34 @@ class PipelineLibraries implements Serializable {
 
     //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
     def checkSourceChanges() {
-        if(envVars.SKIP_STAGES.contains("src")) return true    //source변경여부 체크 안함
+        script.stage("Check source changes") {
+            if(envVars.SKIP_STAGES.contains("src")) return true    //source변경여부 체크 안함
 
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
+            if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
 
-        script.checkout script.scm 
+            script.checkout script.scm 
 
-        def changeLogSets = script.currentBuild.changeSets
-        def hasChangesInDirectory = false
+            def changeLogSets = script.currentBuild.changeSets
+            def hasChangesInDirectory = false
 
-        for (int i = 0; i < changeLogSets.size(); i++) {
-            def entries = changeLogSets[i].items
-            for (int j = 0; j < entries.length; j++) {
-                def entry = entries[j]
-                def files = entry.affectedFiles
-                for (int k = 0; k < files.size(); k++) {
-                    def file = files[k]
-                    //script.echo "Changed source => "+file.path + " <-> ${envVars.PROJECT_DIR}"
-                    if (file.path.startsWith("${envVars.PROJECT_DIR}/")) {
-                        hasChangesInDirectory = true
-                        break
+            for (int i = 0; i < changeLogSets.size(); i++) {
+                def entries = changeLogSets[i].items
+                for (int j = 0; j < entries.length; j++) {
+                    def entry = entries[j]
+                    def files = entry.affectedFiles
+                    for (int k = 0; k < files.size(); k++) {
+                        def file = files[k]
+                        //script.echo "Changed source => "+file.path + " <-> ${envVars.PROJECT_DIR}"
+                        if (file.path.startsWith("${envVars.PROJECT_DIR}/")) {
+                            hasChangesInDirectory = true
+                            break
+                        }
                     }
                 }
             }
-        }
 
-        return hasChangesInDirectory
+            return hasChangesInDirectory
+        }
     }
 
     //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성  
