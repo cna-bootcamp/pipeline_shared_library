@@ -98,13 +98,13 @@ class PipelineLibraries implements Serializable {
 
             script.checkout script.scm 
 
+            def changeLogSets = script.currentBuild.changeSets
+            def hasChangesInDirectory = false
+
             if (changeLogSets.size() == 0) {
                 script.echo "It's the first running. Don't need checking! Keep going!"
                 return true   
             }
-
-            def changeLogSets = script.currentBuild.changeSets
-            def hasChangesInDirectory = false
 
             for (int i = 0; i < changeLogSets.size(); i++) {
                 def entries = changeLogSets[i].items
@@ -354,6 +354,7 @@ class PipelineLibraries implements Serializable {
             """
         }
     }
+
    //-- 이미지 빌드 시 기준 디렉토리 계산
     def getBuildBaseDir() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
