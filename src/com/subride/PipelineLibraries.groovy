@@ -11,6 +11,11 @@ class PipelineLibraries implements Serializable {
 
     //-- 전역변수 셋팅: script.params로 시작하는 변수는 파이프라인 설정에서 값을 지정해야 함 
     def setGlobalVariables() {
+        if(!validateParameters()) {
+            script.error "파라미터가 정의되어 있지 않습니다. Pipeline 설정에서 파라미터를 정의하십시오."
+            return
+        }
+
         envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
         envVars.SERVICE_ID = script.params.SERVICE_ID
         envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
@@ -42,6 +47,18 @@ class PipelineLibraries implements Serializable {
         }
         envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
         envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
+    }
+    //-- parameter 체크
+    def validateParameters() {
+        if (script.params.SERVICE_GROUP == "") return false 
+        if (script.params.SERVICE_ID == "") return false 
+        if (script.params.SERVICE_VERSION == "") return false 
+        if (script.params.NFS_HOST == "") return false
+        if (script.params.IMAGE_REG_HOST == "") return false
+        if (script.params.IMAGE_REG_CREDENTIAL == "") return false
+        if (script.params.IMAGE_REG_ORG == "") return false
+
+        return true
     }
 
     //-- Service ID별 Project 디렉토리를 리턴  
