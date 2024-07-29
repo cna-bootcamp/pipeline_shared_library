@@ -271,6 +271,7 @@ class PipelineLibraries implements Serializable {
     def setCICDVariables() {
         envVars.deployYamlDir = getdeployYamlDir()      //deployment yaml 파일이 있는 디렉토리 구함 
         def props = script.readProperties file:"${envVars.deployYamlDir}/deploy_env_vars"
+
         envVars.applicationName = props['application_name'] //서비스명
         envVars.artifactoryFile = props['artifactory_file'] //서비스 실행 Jar명
         envVars.tag = getImageTag()                         //Container image tag 구하기
@@ -356,7 +357,7 @@ class PipelineLibraries implements Serializable {
     def sonarQubeAnalysisForScripts() {
         script.container('sonar-scanner') {
             //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
-            withSonarQubeEnv("${SONAR_SERVER_ID}") {
+            withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
                 script.sh """
                     sonar-scanner
                 """
@@ -518,6 +519,8 @@ class PipelineLibraries implements Serializable {
     //-- Deploy: 배포
     def deploy() {
         script.container('kubectl') {
+            script.sh "kubectl delete deploy ${envVars.SERVICE_ID}"
+
             script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
     }
