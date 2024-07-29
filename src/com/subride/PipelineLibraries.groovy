@@ -357,7 +357,7 @@ class PipelineLibraries implements Serializable {
     def sonarQubeAnalysisForScripts() {
         script.container('sonar-scanner') {
             //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
-            withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
+            script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
                 script.sh """
                     sonar-scanner
                 """
