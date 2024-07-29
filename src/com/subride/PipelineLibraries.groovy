@@ -156,9 +156,6 @@ class PipelineLibraries implements Serializable {
                                 if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
                                     ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SERVICE_ID}"
                                 fi
-                                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE_FRONT}" ]; then
-                                    //ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.NPM_CACHE_DIR}/${envVars.SERVICE_ID}"
-                                fi
                                 
                                 ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.SERVICE_ID}"
                             """
@@ -195,13 +192,6 @@ class PipelineLibraries implements Serializable {
                 script.nfsVolume(mountPath: '/home/gradle/.gradle', serverAddress: "${envVars.NFS_HOST}",
                 serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SERVICE_ID}", readOnly: false)
             )
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
-            /*
-            volumes.add(
-                script.nfsVolume(mountPath: '/usr/local/lib/node_modules', serverAddress: "${envVars.NFS_HOST}",
-                serverPath: "/${envVars.NFS_DIR}/${envVars.NPM_CACHE_DIR}/${envVars.SERVICE_ID}", readOnly: false)
-            ) 
-            */           
         }
 
         script.podTemplate(label: "${envVars.PIPELINE_ID}",
