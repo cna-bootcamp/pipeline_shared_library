@@ -27,9 +27,8 @@ class PipelineLibraries implements Serializable {
             envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
             envVars.SKIP_STAGES = script.params.SKIP_STAGES
             envVars.EXPORT_PORT = script.params.EXPORT_PORT
-            //envVars API_GATEWAY_FQDN = script.params.API_GATEWAY_FQDN
-            //envVars API_GATEWAY_FQDN = "scg.43.200.12.214.nip.io"
-
+            envVars API_GATEWAY_FQDN = script.params.API_GATEWAY_FQDN
+            
             envVars.NFS_DIR = 'data/nfs'                    //NFS 공유 디렉토리
             envVars.NFS_CREDENTIAL = 'jenkins-nfs-ssh'      //NFS 서버 접근 Credential(ssh username with private key 타입)
 
@@ -70,7 +69,7 @@ class PipelineLibraries implements Serializable {
         if (script.params.IMAGE_REG_ORG == '') { return false }
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
             if (script.params.EXPORT_PORT == '') { return false }
-            //if (script.params.API_GATEWAY_FQDN == '') { return false }
+            if (script.params.API_GATEWAY_FQDN == '') { return false }
         }
 
         return true
