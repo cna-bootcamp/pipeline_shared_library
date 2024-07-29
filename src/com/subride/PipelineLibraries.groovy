@@ -337,7 +337,7 @@ class PipelineLibraries implements Serializable {
     def buildScripts() {
         script.container('node') {
             script.sh '''
-                npm install -g
+                npm install
                 npm run build --watch --watch-options-aggregate-timeout 1000
             '''
         }
