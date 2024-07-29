@@ -324,10 +324,10 @@ class PipelineLibraries implements Serializable {
     //--Build: Scripts 파일 Build
     def buildScripts() {
         script.container('node') {
-            script.sh '''
+            script.sh """
                 npm install
                 npm run build --watch --watch-options-aggregate-timeout 1000
-            '''
+            """
         }
     }
 
@@ -357,9 +357,9 @@ class PipelineLibraries implements Serializable {
         script.container('sonar-scanner') {
             //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
             withSonarQubeEnv("${SONAR_SERVER_ID}") {
-                sh '''
+                script.sh """
                     sonar-scanner
-                '''
+                """
             }
         }       
     }
