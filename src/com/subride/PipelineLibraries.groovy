@@ -2,6 +2,7 @@
 package com.subride
 
 class PipelineLibraries implements Serializable {
+
     def script
     def envVars = [:]
 
@@ -9,10 +10,10 @@ class PipelineLibraries implements Serializable {
         this.script = script
     }
 
-    //-- 전역변수 셋팅: script.params로 시작하는 변수는 파이프라인 설정에서 값을 지정해야 함 
+    //-- 전역변수 셋팅: script.params로 시작하는 변수는 파이프라인 설정에서 값을 지정해야 함
     def setGlobalVariables() {
         script.stage('Set Global variables') {
-            if(!validateParameters()) {
+            if (!validateParameters()) {
                 script.error '파라미터가 정의되어 있지 않습니다. Pipeline 설정에서 파라미터를 정의하십시오.'
                 return
             }
@@ -58,7 +59,7 @@ class PipelineLibraries implements Serializable {
     def validateParameters() {
         if (script.params.SERVICE_GROUP == '') { return false }
         if (script.params.SERVICE_ID == '') { return false }
-        if (script.params.SERVICE_VERSION == '') { return false } 
+        if (script.params.SERVICE_VERSION == '') { return false }
         if (script.params.NFS_HOST == '') { return false }
         if (script.params.IMAGE_REG_HOST == '') { return false }
         if (script.params.IMAGE_REG_CREDENTIAL == '') { return false }
@@ -70,7 +71,7 @@ class PipelineLibraries implements Serializable {
         return true
     }
 
-    //-- Service ID별 Project 디렉토리를 리턴  
+    //-- Service ID별 Project 디렉토리를 리턴
     def getProjectDir() {
         def sourceDirMap = [
             'config': 'config',
@@ -83,14 +84,14 @@ class PipelineLibraries implements Serializable {
             'transfer': 'transfer',
             'subride-front': '.'
         ]
-        
+
         return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
     }
 
     //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
     def checkSourceChanges() {
         script.stage('Check source changes') {
-            if(envVars.SKIP_STAGES.contains('src')) {
+            if (envVars.SKIP_STAGES.contains('src')) {
                 script.echo '[Check source changes] has been skipped!'
                 return true    //source변경여부 체크 안함
             }
@@ -100,14 +101,14 @@ class PipelineLibraries implements Serializable {
                 return true   //프로트엔드는 검사 불필요
             }
 
-            script.checkout script.scm 
+            script.checkout script.scm
 
             def changeLogSets = script.currentBuild.changeSets
             def hasChangesInDirectory = false
 
             if (changeLogSets.size() == 0) {
                 script.echo "It's the first running. Don't need checking! Keep going!"
-                return true   
+                return true
             }
 
             for (int i = 0; i < changeLogSets.size(); i++) {
@@ -131,9 +132,8 @@ class PipelineLibraries implements Serializable {
         }
     }
 
-    //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성  
+    //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성
     def createCacheDirectory() {
-
         //-------- NFS서버의 공유 디렉토리 하위에 캐싱 디렉토리 생성  ---
         script.podTemplate(
             label: "${envVars.PIPELINE_ID}",
@@ -159,11 +159,10 @@ class PipelineLibraries implements Serializable {
                         }
                     }
                 }
-            }            
+            }
         }
     //----------------------------------------------
     }
-
 
     //*************************************** CI/CD 메인 처리 함수 **************************************
     def buildAndDeploy() {
@@ -199,7 +198,7 @@ class PipelineLibraries implements Serializable {
             script.node("${envVars.PIPELINE_ID}") {
                 notifySlack('STARTED', '#FFFF00')
 
-                //소스를 컨테이너 안으로 복사  
+                //소스를 컨테이너 안으로 복사
                 script.stage('Get Source') { script.checkout script.scm }
 
                 //CI/CD 실행을 위한 변수 셋팅
@@ -214,9 +213,8 @@ class PipelineLibraries implements Serializable {
                     } else {
                         script.stage('Build Scripts') { buildScripts() }
                     }
-                    
 
-                    if(!skipStages.contains('sonar')) {
+                    if (!skipStages.contains('sonar')) {
                         //Build: 소스품질 검사
                         script.stage('SonarQube Analysis') {
                             if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
@@ -229,35 +227,35 @@ class PipelineLibraries implements Serializable {
                         //Build: Quality Gate 충족 검사
                         script.stage('Verify Quality Gate') { verifyQualityGate() }
                     }
-            
+
                     //Build: Build Container image
-                    script.stage('Build Container Image') { 
+                    script.stage('Build Container Image') {
                         if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
-                            buildContainerImageForJava() 
+                            buildContainerImageForJava()
                         } else {
                             buildContainerImageForScripts()
                         }
                     }
 
                     //Build: image 보안 취약성 점검
-                    if(!skipStages.contains('trivy')) {                                 
+                    if (!skipStages.contains('trivy')) {
                         script.stage('Scan Image Vulnerability') { scanContainerImageVulnerability() }
-                    }                                   
+                    }
 
                     //Release:  Push Container image
                     script.stage('Push Container Image') { pushContainerImage() }
 
                     //Deploy: 배포 manifest 파일 생성
                     script.stage('Generate Manifest') { generateManifest() }
-            
+
                     //Deploy: 배포
                     script.stage('Deploy') { deploy() }
 
                     //통보
                     script.currentBuild.result = 'SUCCESS'
-                    notifySlack('SUCESS', '#00FF00') 
+                    notifySlack('SUCESS', '#00FF00')
                     script.echo '**** FINISH ALL STAGES : SUCCESS'
-                } catch(e) {
+                } catch (e) {
                     script.currentBuild.result = 'FAILED'
                     notifySlack('FAILED', '#FF0000')
                     throw e
@@ -269,7 +267,7 @@ class PipelineLibraries implements Serializable {
 
     //-- CI/CD 실행을 위한 변수 셋팅
     def setCICDVariables() {
-        envVars.deployYamlDir = getdeployYamlDir()      //deployment yaml 파일이 있는 디렉토리 구함 
+        envVars.deployYamlDir = getdeployYamlDir()      //deployment yaml 파일이 있는 디렉토리 구함
         def props = script.readProperties file:"${envVars.deployYamlDir}/deploy_env_vars"
 
         envVars.applicationName = props['application_name'] //서비스명
@@ -282,7 +280,7 @@ class PipelineLibraries implements Serializable {
         envVars.imagePath = "${envVars.IMAGE_REG_HOST}/${envVars.IMAGE_REG_ORG}/${envVars.applicationName}"
 
         envVars.eurekaServiceUrl = 'http://eureka:18080/eureka/'        //Eureka 서버 Url
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {   
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
             envVars.configServerFQDN = 'http://config:18080'            //Config 서버 Url
         }
     }
@@ -293,13 +291,15 @@ class PipelineLibraries implements Serializable {
         def timestamp = dateFormat.format(currentDate)
 
         //return timestamp
-        return envVars.SERVICE_VERSION      //현재는 버전을 리턴하나 실제 운영시에는 Timestamp를 리턴하게 변경 필요 
+        return envVars.SERVICE_VERSION      //현재는 버전을 리턴하나 실제 운영시에는 Timestamp를 리턴하게 변경 필요
     }
 
     //deployment yaml 파일이 있는 디렉토리 리턴
     def getdeployYamlDir() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {
-            return "${envVars.PROJECT_DIR}/deployment"  
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || 
+            envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT  || 
+            envVars.SERVICE_ID == 'transfer') {
+            return "${envVars.PROJECT_DIR}/deployment"
         } else {
             return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}/deployment"
         }
@@ -308,27 +308,27 @@ class PipelineLibraries implements Serializable {
     //-- Build: 실행Jar파일 Build
     def buildJar() {
         def buildDir = ''
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {    
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {
             buildDir = "${envVars.PROJECT_DIR}"
-        } else {    
+        } else {
             buildDir = "${envVars.PROJECT_DIR}:${envVars.SUB_DIR_INFRA}"
         }
 
         script.container('gradle') {
             script.sh 'echo "Build jar under build directory"'
-            
+
             //실행 Jar 파일 빌드
-            script.sh "gradle :${buildDir}:build -x test"   
+            script.sh "gradle :${buildDir}:build -x test"
         }
     }
 
     //--Build: Scripts 파일 Build
     def buildScripts() {
         script.container('node') {
-            script.sh """
+            script.sh '''
                 npm install
                 npm run build --watch --watch-options-aggregate-timeout 1000
-            """
+            '''
         }
     }
 
@@ -356,15 +356,15 @@ class PipelineLibraries implements Serializable {
     //-- Build: 소스품질 검사(Scripts)
     def sonarQubeAnalysisForScripts() {
         script.container('sonar-scanner') {
-            //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행 
+            //--Jenkins System설정과 sonar-project.properties파일 내용을 기반으로 소스검사 수행
             script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
-                script.sh """
+                script.sh '''
                     sonar-scanner
-                """
+                '''
             }
-        }       
+        }
     }
- 
+
     //-- Build: Quality Gate 충족 검사
     //-- SonarQube의 Administrator에서 Web Hook 등록해야 함
     def verifyQualityGate() {
@@ -406,16 +406,16 @@ class PipelineLibraries implements Serializable {
             """
         }
     }
- 
+
     //-- 이미지 빌드 시 기준 디렉토리 계산
     def getBuildBaseDir() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {
             return "${envVars.PROJECT_DIR}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE && envVars.SERVICE_ID == 'transfer') {   
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE && envVars.SERVICE_ID == 'transfer') {
             return "${envVars.PROJECT_DIR}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
             return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
             return '.'
         } else {
             return '.'
@@ -466,7 +466,7 @@ class PipelineLibraries implements Serializable {
                 vulnerabilityCounts[severity] = count.trim().toInteger()
             }
         }
-        
+
         return vulnerabilityCounts
     }
 
@@ -524,7 +524,7 @@ class PipelineLibraries implements Serializable {
         }
     }
 
-    //-- Slack으로 통지  
+    //-- Slack으로 통지
     def notifySlack(STATUS, COLOR) {
     // Implement Slack notification logic here
     // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
