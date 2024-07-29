@@ -442,6 +442,8 @@ class PipelineLibraries implements Serializable {
         
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
             return "${envVars.PROJECT_DIR}"
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE && envVars.SERVICE_ID == "transfer") {   
+            return "${envVars.PROJECT_DIR}"
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
             return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
