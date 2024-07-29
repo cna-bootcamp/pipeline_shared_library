@@ -525,7 +525,7 @@ class PipelineLibraries implements Serializable {
             try {
                 script.sh "kubectl delete deploy ${envVars.SERVICE_ID} -n ${envVars.namespace}"
             } catch (e) {
-                echo "Error occurred while deleting the deployment: ${e}"
+                script.echo "Error occurred while deleting the deployment: ${e}"
             }
             script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
