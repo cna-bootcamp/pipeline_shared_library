@@ -196,10 +196,12 @@ class PipelineLibraries implements Serializable {
                 serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.SERVICE_ID}", readOnly: false)
             )
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
+            /*
             volumes.add(
                 script.nfsVolume(mountPath: '/usr/local/lib/node_modules', serverAddress: "${envVars.NFS_HOST}",
                 serverPath: "/${envVars.NFS_DIR}/${envVars.NPM_CACHE_DIR}/${envVars.SERVICE_ID}", readOnly: false)
-            )            
+            ) 
+            */           
         }
 
         script.podTemplate(label: "${envVars.PIPELINE_ID}",
