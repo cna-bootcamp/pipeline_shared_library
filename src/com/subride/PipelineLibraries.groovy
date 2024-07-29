@@ -11,45 +11,48 @@ class PipelineLibraries implements Serializable {
 
     //-- 전역변수 셋팅: script.params로 시작하는 변수는 파이프라인 설정에서 값을 지정해야 함 
     def setGlobalVariables() {
-        if(!validateParameters()) {
-            script.error "파라미터가 정의되어 있지 않습니다. Pipeline 설정에서 파라미터를 정의하십시오."
-            return
+        script.stage("Set Global variables") {
+            if(!validateParameters()) {
+                script.error "파라미터가 정의되어 있지 않습니다. Pipeline 설정에서 파라미터를 정의하십시오."
+                return
+            }
+
+            envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
+            envVars.SERVICE_ID = script.params.SERVICE_ID
+            envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
+            envVars.NFS_HOST = script.params.NFS_HOST
+            envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
+            envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
+            envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
+            envVars.SKIP_STAGES = script.params.SKIP_STAGES
+
+            envVars.NFS_DIR = "data/nfs"                    //NFS 공유 디렉토리
+            envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"      //NFS 서버 접근 Credential(ssh username with private key 타입)
+
+            envVars.GRADLE_CACHE_DIR = "gradle"             //Gradle library 캐싱 디렉토리
+            envVars.TRIVY_CACHE_DIR = "trivy-cache"         //Trivy 캐싱 디렉토리
+            envVars.IMAGE_REG_PULL_SECRET = "dockerhub"     //image pull secret
+            envVars.IMAGE_PULL_POLICY = "Always"            //Image Pull policy
+            envVars.BUILD_LIB_DIR = "build/libs"            //실행Jar 디렉토리
+            envVars.JAVA_BINARY_DIR = "build/classes/java/main" //class파일 디렉토리(SonqrQube에서 소스검사 때 사용)
+            envVars.SONAR_SERVER_ID = "SonarQube"           //Jenkins 시스템 설정에 이 이름으로  SonarQube서버 정보 설정해야 함
+
+            envVars.SERVICE_GROUP_SC = "sc"                 //Service Group 명 for Spring Cloud Services
+            envVars.SERVICE_GROUP_SUBRIDE = "subride"       //Service Group 명 for 구독관리 백엔드
+            envVars.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"   //Service Group 명 for 구독관리 프론트엔드
+
+            envVars.PROJECT_DIR = getProjectDir()                //Service Group에 따른 Project 디렉토리를 셋팅
+            if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
+                envVars.SUB_DIR_BIZ = envVars.PROJECT_DIR + "-biz"
+                envVars.SIB_DIR_INFRA = envVars.PROJECT_DIR + "-infra"
+            }
+            envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
+            envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
+
+            script.echo "biz: ${envVars.SUB_DIR_BIZ}, infra: ${envVars.SIB_DIR_INFRA}" 
         }
-
-        envVars.SERVICE_GROUP = script.params.SERVICE_GROUP
-        envVars.SERVICE_ID = script.params.SERVICE_ID
-        envVars.SERVICE_VERSION = script.params.SERVICE_VERSION
-        envVars.NFS_HOST = script.params.NFS_HOST
-        envVars.IMAGE_REG_HOST = script.params.IMAGE_REG_HOST
-        envVars.IMAGE_REG_CREDENTIAL = script.params.IMAGE_REG_CREDENTIAL
-        envVars.IMAGE_REG_ORG = script.params.IMAGE_REG_ORG
-        envVars.SKIP_STAGES = script.params.SKIP_STAGES
-
-        envVars.NFS_DIR = "data/nfs"                    //NFS 공유 디렉토리
-        envVars.NFS_CREDENTIAL = "jenkins-nfs-ssh"      //NFS 서버 접근 Credential(ssh username with private key 타입)
-
-        envVars.GRADLE_CACHE_DIR = "gradle"             //Gradle library 캐싱 디렉토리
-        envVars.TRIVY_CACHE_DIR = "trivy-cache"         //Trivy 캐싱 디렉토리
-        envVars.IMAGE_REG_PULL_SECRET = "dockerhub"     //image pull secret
-        envVars.IMAGE_PULL_POLICY = "Always"            //Image Pull policy
-        envVars.BUILD_LIB_DIR = "build/libs"            //실행Jar 디렉토리
-        envVars.JAVA_BINARY_DIR = "build/classes/java/main" //class파일 디렉토리(SonqrQube에서 소스검사 때 사용)
-        envVars.SONAR_SERVER_ID = "SonarQube"           //Jenkins 시스템 설정에 이 이름으로  SonarQube서버 정보 설정해야 함
-
-        envVars.SERVICE_GROUP_SC = "sc"                 //Service Group 명 for Spring Cloud Services
-        envVars.SERVICE_GROUP_SUBRIDE = "subride"       //Service Group 명 for 구독관리 백엔드
-        envVars.SERVICE_GROUP_SUBRIDE_FRONT = "subride-front"   //Service Group 명 for 구독관리 프론트엔드
-
-        envVars.PROJECT_DIR = getProjectDir()                //Service Group에 따른 Project 디렉토리를 셋팅
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            envVars.SUB_DIR_BIZ = envVars.PROJECT_DIR + "-biz"
-            envVars.SIB_DIR_INFRA = envVars.PROJECT_DIR + "-infra"
-        }
-        envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
-        envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
-
-        script.echo "biz: ${envVars.SUB_DIR_BIZ}, infra: ${envVars.SIB_DIR_INFRA}" 
     }
+
     //-- parameter 체크
     def validateParameters() {
         if (script.params.SERVICE_GROUP == "") return false 
