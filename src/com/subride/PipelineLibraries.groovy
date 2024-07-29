@@ -331,6 +331,7 @@ class PipelineLibraries implements Serializable {
     def buildScripts() {
         script.container('node') {
             script.sh """
+                export REACT_APP_API_BASE_URL=${envVars.API_GATEWAY_FQDN}
                 npm install --only=production
                 npm run build --watch --watch-options-aggregate-timeout 1000
             """
