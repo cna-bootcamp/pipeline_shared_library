@@ -522,7 +522,7 @@ class PipelineLibraries implements Serializable {
     //-- Deploy: 배포
     def deploy() {
         script.container('kubectl') {
-            //script.sh "kubectl delete deploy ${envVars.SERVICE_ID} -n ${envVars.namespace}"
+            script.sh "kubectl delete deploy ${envVars.SERVICE_ID} -n ${envVars.namespace}"
             script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
     }
