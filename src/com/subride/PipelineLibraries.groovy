@@ -297,10 +297,10 @@ class PipelineLibraries implements Serializable {
 
     //deployment yaml 파일이 있는 디렉토리 리턴
     def getdeployYamlDir() {
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
-            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}/deployment"
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {
+            return "${envVars.PROJECT_DIR}/deployment"  
         } else {
-            return "${envVars.PROJECT_DIR}/deployment"    
+            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}/deployment"
         }
     }
 
