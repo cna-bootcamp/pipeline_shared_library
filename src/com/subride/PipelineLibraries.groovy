@@ -406,7 +406,7 @@ class PipelineLibraries implements Serializable {
             """
         }
     }
-
+ 
     //-- 이미지 빌드 시 기준 디렉토리 계산
     def getBuildBaseDir() {
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
