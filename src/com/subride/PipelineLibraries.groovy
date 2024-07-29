@@ -81,11 +81,22 @@ class PipelineLibraries implements Serializable {
     //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
     def checkSourceChanges() {
         script.stage("Check source changes") {
-            if(envVars.SKIP_STAGES.contains("src")) return true    //source변경여부 체크 안함
+            if(envVars.SKIP_STAGES.contains("src")) {
+                script.echo "[Check source changes] has been skipped!"
+                return true    //source변경여부 체크 안함
+            }
 
-            if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
+            if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
+                script.echo envVars.SERVICE_GROUP_SUBRIDE_FRONT + "Don't need checking! Keep going!"
+                return true   //프로트엔드는 검사 불필요
+            }
 
             script.checkout script.scm 
+
+            if (changeLogSets.size() == 0) {
+                script.echo "It's the first running. Don't need checking! Keep going!"
+                return true   
+            }
 
             def changeLogSets = script.currentBuild.changeSets
             def hasChangesInDirectory = false
@@ -106,6 +117,7 @@ class PipelineLibraries implements Serializable {
                 }
             }
 
+            script.echo "${envVars.PROJECT_DIR} has changed source!"
             return hasChangesInDirectory
         }
     }
