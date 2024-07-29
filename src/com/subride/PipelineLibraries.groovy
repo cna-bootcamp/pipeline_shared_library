@@ -33,6 +33,8 @@ class PipelineLibraries implements Serializable {
 
             envVars.GRADLE_CACHE_DIR = 'gradle'             //Gradle library 캐싱 디렉토리
             envVars.TRIVY_CACHE_DIR = 'trivy-cache'         //Trivy 캐싱 디렉토리
+            envVars.NPM_CACHE_DIR = 'npm-cache'             //node modules 캐싱 디렉토리
+            
             envVars.IMAGE_REG_PULL_SECRET = 'dockerhub'     //image pull secret
             envVars.IMAGE_PULL_POLICY = 'Always'            //Image Pull policy
             envVars.BUILD_LIB_DIR = 'build/libs'            //실행Jar 디렉토리
@@ -154,6 +156,10 @@ class PipelineLibraries implements Serializable {
                                 if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SC}" ] || [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE}" ]; then
                                     ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.PROJECT_DIR}"
                                 fi
+                                if [ "${envVars.SERVICE_GROUP}" = "${envVars.SERVICE_GROUP_SUBRIDE_FRONT}" ]; then
+                                    ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.NPM_CACHE_DIR}/${envVars.PROJECT_DIR}"
+                                fi
+                                
                                 ssh -i \${SSH_KEY_FILE} \${SSH_USER}@${envVars.NFS_HOST} "sudo mkdir -p /${envVars.NFS_DIR}/${envVars.TRIVY_CACHE_DIR}/${envVars.PROJECT_DIR}"
                             """
                         }
@@ -189,6 +195,11 @@ class PipelineLibraries implements Serializable {
                 script.nfsVolume(mountPath: '/home/gradle/.gradle', serverAddress: "${envVars.NFS_HOST}",
                 serverPath: "/${envVars.NFS_DIR}/${envVars.GRADLE_CACHE_DIR}/${envVars.PROJECT_DIR}", readOnly: false)
             )
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
+            volumes.add(
+                script.nfsVolume(mountPath: '/usr/local/lib/node_modules', serverAddress: "${envVars.NFS_HOST}",
+                serverPath: "/${envVars.NFS_DIR}/${envVars.NPM_CACHE_DIR}/${envVars.PROJECT_DIR}", readOnly: false)
+            )            
         }
 
         script.podTemplate(label: "${envVars.PIPELINE_ID}",
@@ -326,7 +337,7 @@ class PipelineLibraries implements Serializable {
     def buildScripts() {
         script.container('node') {
             script.sh '''
-                npm install
+                npm install -g
                 npm run build --watch --watch-options-aggregate-timeout 1000
             '''
         }
