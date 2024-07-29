@@ -198,19 +198,32 @@ class PipelineLibraries implements Serializable {
                 def skipStages = "${envVars.SKIP_STAGES}"  //건너 띌 스테이지 지정(sonar와 trivy skip가능)
 
                 try {
-                    //Build: 실행Jar파일 Build
-                    script.stage("Build Jar") { buildJar() }
+                    if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                        //Build: 실행Jar파일 Build
+                        script.stage("Build Jar") { buildJar() }
+                    } else {
+
+                    }
+                    
 
                     if(!skipStages.contains("sonar")) {
                         //Build: 소스품질 검사
-                        script.stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
+                        if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                            script.stage("SonarQube Analysis") { sonarQubeAnalysisForJava() }
+                        } else {
+
+                        }
 
                         //Build: Quality Gate 충족 검사
                         script.stage("Verify Quality Gate") { verifyQualityGate() }
                     }
             
                     //Build: Build Container image
-                    script.stage("Build Container Image") { buildContainerImageForJava() }
+                    if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
+                         script.stage("Build Container Image") { buildContainerImageForJava() }
+                    } else {
+
+                    }
 
                     //Build: image 보안 취약성 점검
                     if(!skipStages.contains("trivy")) {                                 
@@ -278,7 +291,13 @@ class PipelineLibraries implements Serializable {
     }
     //-- Build: 실행Jar파일 Build
     def buildJar() {
-        def buildDir = getBuildDir()    //Project 디렉토리 하위의 Jar가 있는 디렉토리 구함
+        def buildDir = ""
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == "transfer") {    
+            buildDir = "${envVars.PROJECT_DIR}"
+        } else {    
+            buildDir = "${envVars.PROJECT_DIR}:${envVars.SUB_DIR_INFRA}"
+        }
+
         script.container("gradle") {
             script.sh 'echo "Build jar under build directory"'
             
@@ -324,15 +343,29 @@ class PipelineLibraries implements Serializable {
 
     //-- Build: Build Container image
     def buildContainerImageForJava() {
-        def buildDir = getBuildDir()
+        def buildBaseDir = getBuildBaseDir()
         script.container("podman") {
             script.sh """
                 podman build -f ${envVars.PIPELINE_DIR}/Dockerfile \
                     -t ${envVars.imagePath}:${envVars.tag} \
                     --build-arg BUILD_LIB_DIR=${envVars.BUILD_LIB_DIR} \
                     --build-arg ARTIFACTORY_FILE=${envVars.artifactoryFile} \
-                        ${buildDir}
+                        ${buildBaseDir}
             """
+        }
+    }
+   //-- 이미지 빌드 시 기준 디렉토리 계산
+    def getBuildBaseDir() {
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
+            return "${envVars.PROJECT_DIR}"
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE && envVars.SERVICE_ID == "transfer") {   
+            return "${envVars.PROJECT_DIR}"
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
+            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
+        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
+            return "."
+        } else {
+            return "."
         }
     }
 
@@ -434,22 +467,6 @@ class PipelineLibraries implements Serializable {
     def deploy() {
         script.container("kubectl") {
             script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
-        }
-    }
-
-    //-- jar빌드와 이미지 빌드 시 기준 디렉토리 계산
-    def getBuildDir() {
-        
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
-            return "${envVars.PROJECT_DIR}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE && envVars.SERVICE_ID == "transfer") {   
-            return "${envVars.PROJECT_DIR}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
-            return "${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
-        } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {    
-            return "."
-        } else {
-            return "."
         }
     }
 
