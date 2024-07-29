@@ -47,6 +47,8 @@ class PipelineLibraries implements Serializable {
         }
         envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
         envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
+
+        script.echo "biz: ${envVars.SUB_DIR_BIZ}, infra: ${envVars.SIB_DIR_INFRA}" 
     }
     //-- parameter 체크
     def validateParameters() {
