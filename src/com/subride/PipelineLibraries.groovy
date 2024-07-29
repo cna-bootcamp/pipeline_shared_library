@@ -28,7 +28,7 @@ class PipelineLibraries implements Serializable {
             envVars.SKIP_STAGES = script.params.SKIP_STAGES
             envVars.EXPORT_PORT = script.params.EXPORT_PORT
             //envVars API_GATEWAY_FQDN = script.params.API_GATEWAY_FQDN
-            envVars API_GATEWAY_FQDN = "scg.43.200.12.214.nip.io"
+            //envVars API_GATEWAY_FQDN = "scg.43.200.12.214.nip.io"
 
             envVars.NFS_DIR = 'data/nfs'                    //NFS 공유 디렉토리
             envVars.NFS_CREDENTIAL = 'jenkins-nfs-ssh'      //NFS 서버 접근 Credential(ssh username with private key 타입)
@@ -408,7 +408,7 @@ class PipelineLibraries implements Serializable {
                     --build-arg PROJECT_FOLDER=${envVars.PROJECT_DIR} \
                     --build-arg BUILD_FOLDER=${envVars.PIPELINE_DIR} \
                     --build-arg EXPORT_PORT=${envVars.EXPORT_PORT} \
-                    --build-arg REACT_APP_API_BASE_URL=${envVars.API_GATEWAY_FQDN} \
+                    
                     ${buildBaseDir}
             """
         }
