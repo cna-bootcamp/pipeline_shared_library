@@ -522,15 +522,15 @@ class PipelineLibraries implements Serializable {
     //-- Deploy: 배포
     def deploy() {
         script.container('kubectl') {
-            script.sh "kubectl delete deploy ${envVars.SERVICE_ID} -n ${envVars.namespace || true"
+            script.sh("kubectl delete deploy ${envVars.SERVICE_ID} -n ${envVars.namespace") || true
             script.sh "kubectl apply -f ${envVars.deployYamlDir}/${envVars.manifest} -n ${envVars.namespace}"
         }
     }
 
     //-- Slack으로 통지
     def notifySlack(STATUS, COLOR) {
-    // Implement Slack notification logic here
-    // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
+        // Implement Slack notification logic here
+        // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
     }
 
 }
