@@ -68,8 +68,8 @@ class PipelineLibraries implements Serializable {
         if (script.params.IMAGE_REG_CREDENTIAL == '') { return false }
         if (script.params.IMAGE_REG_ORG == '') { return false }
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) {
-            if (script.params.EXPORT_PORT == '') return false
-            if (script.params.API_GATEWAY_URL == '') return false
+            if (script.params.EXPORT_PORT == '') { return false }
+            if (script.params.API_GATEWAY_URL == '') { return false }
         }
 
         return true
