@@ -49,7 +49,7 @@ class PipelineLibraries implements Serializable {
             envVars.PIPELINE_DIR = "pipeline"               //pipeline 파일(Jenkinsfile, Dockerfile 등)디렉토리(프로젝트 Root 밑에 있어야 함)
             envVars.PIPELINE_ID = "${envVars.PROJECT_DIR}-${script.env.BUILD_NUMBER}"
 
-            script.echo "biz: ${envVars.SUB_DIR_BIZ}, infra: ${envVars.SIB_DIR_INFRA}" 
+            //script.echo "biz: ${envVars.SUB_DIR_BIZ}, infra: ${envVars.SIB_DIR_INFRA}" 
         }
     }
 
@@ -439,6 +439,7 @@ class PipelineLibraries implements Serializable {
 
     //-- jar빌드와 이미지 빌드 시 기준 디렉토리 계산
     def getBuildDir() {
+        script.echo "group: ${envVars.SERVICE_GROUP}, ${envVars.PROJECT_DIR}/${envVars.SUB_DIR_INFRA}"
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {    
             return "${envVars.PROJECT_DIR}"
         } else if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {    
