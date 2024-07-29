@@ -328,10 +328,10 @@ class PipelineLibraries implements Serializable {
     //--Build: Scripts 파일 Build
     def buildScripts() {
         script.container('node') {
-            script.sh '''
-                npm install
+            script.sh """
+                npm install --only=production
                 npm run build --watch --watch-options-aggregate-timeout 1000
-            '''
+            """
         }
     }
 
