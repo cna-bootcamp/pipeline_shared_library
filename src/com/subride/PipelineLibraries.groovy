@@ -140,8 +140,6 @@ class PipelineLibraries implements Serializable {
             }            
         }
         //----------------------------------------------
-
-        return hasChanges
     }
 
 
