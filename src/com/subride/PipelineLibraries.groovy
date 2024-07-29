@@ -78,17 +78,38 @@ class PipelineLibraries implements Serializable {
         return sourceDirMap.getOrDefault(envVars.SERVICE_ID, envVars.SERVICE_ID)
     }
 
-    //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성  
-    def prepareEnvironment() {
-        def hasChanges = true
+    //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
+    def checkSourceChanges() {
+        if(envVars.SKIP_STAGES.contains("src")) return true    //source변경여부 체크 안함
 
-        //---------- 소스변경 검사 
-        script.stage("Check Source Changes") {
-            hasChanges = checkSourceChanges()            
+        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
+
+        script.checkout script.scm 
+
+        def changeLogSets = script.currentBuild.changeSets
+        def hasChangesInDirectory = false
+
+        for (int i = 0; i < changeLogSets.size(); i++) {
+            def entries = changeLogSets[i].items
+            for (int j = 0; j < entries.length; j++) {
+                def entry = entries[j]
+                def files = entry.affectedFiles
+                for (int k = 0; k < files.size(); k++) {
+                    def file = files[k]
+                    //script.echo "Changed source => "+file.path + " <-> ${envVars.PROJECT_DIR}"
+                    if (file.path.startsWith("${envVars.PROJECT_DIR}/")) {
+                        hasChangesInDirectory = true
+                        break
+                    }
+                }
+            }
         }
-        script.echo "********* Changes Source => ${hasChanges}"
-        if (!hasChanges) return hasChanges
-        //--------------------------------
+
+        return hasChangesInDirectory
+    }
+
+    //-- 실행환경 준비: 소스 변경 여부 검사, 캐싱 디렉토리 생성  
+    def createCacheDirectory() {
 
         //-------- NFS서버의 공유 디렉토리 하위에 캐싱 디렉토리 생성  ---
         script.podTemplate(
@@ -123,35 +144,6 @@ class PipelineLibraries implements Serializable {
         return hasChanges
     }
 
-    //-- 소스 변경 여부 검사: 멀티 프로젝트이므로 타 서비스 소스 변경 시에도 파이프라인이 실행되어 검사 필요
-    def checkSourceChanges() {
-        if(envVars.SKIP_STAGES.contains("src")) return true    //source변경여부 체크 안함
-
-        if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE_FRONT) return true   //프로트엔드는 검사 불필요
-
-        script.checkout script.scm 
-
-        def changeLogSets = script.currentBuild.changeSets
-        def hasChangesInDirectory = false
-
-        for (int i = 0; i < changeLogSets.size(); i++) {
-            def entries = changeLogSets[i].items
-            for (int j = 0; j < entries.length; j++) {
-                def entry = entries[j]
-                def files = entry.affectedFiles
-                for (int k = 0; k < files.size(); k++) {
-                    def file = files[k]
-                    //script.echo "Changed source => "+file.path + " <-> ${envVars.PROJECT_DIR}"
-                    if (file.path.startsWith("${envVars.PROJECT_DIR}/")) {
-                        hasChangesInDirectory = true
-                        break
-                    }
-                }
-            }
-        }
-
-        return hasChangesInDirectory
-    }
 
     //=================== CI/CD 메인 처리 함수 ============================
     def buildAndDeploy() {
