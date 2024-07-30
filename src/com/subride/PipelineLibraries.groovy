@@ -408,7 +408,6 @@ class PipelineLibraries implements Serializable {
                     --build-arg PROJECT_FOLDER=${envVars.PROJECT_DIR} \
                     --build-arg BUILD_FOLDER=${envVars.PIPELINE_DIR} \
                     --build-arg EXPORT_PORT=${envVars.EXPORT_PORT} \
-                    --build-arg REACT_APP_API_BASE_URL=${envVars.API_GATEWAY_FQDN} \
                     ${buildBaseDir}
             """
         }
