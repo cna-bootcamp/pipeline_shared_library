@@ -1,4 +1,3 @@
-
 package com.subride
 
 class PipelineLibraries implements Serializable {
@@ -166,7 +165,6 @@ class PipelineLibraries implements Serializable {
                 }
             }
         }
-    //----------------------------------------------
     }
 
     //*************************************** CI/CD 메인 처리 함수 **************************************
