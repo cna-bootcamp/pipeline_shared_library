@@ -196,11 +196,10 @@ class PipelineLibraries implements Serializable {
             )
         }
 
-        script.podTemplate(label: "${envVars.PIPELINE_ID}",
-            containers: containers,
-            volumes: volumes
-        ) {
+        script.podTemplate(label: "${envVars.PIPELINE_ID}", containers: containers, volumes: volumes) {
             script.node("${envVars.PIPELINE_ID}") {
+                def skipStages = "${envVars.SKIP_STAGES}"  //건너 띌 스테이지 지정(sonar와 trivy skip가능)
+
                 notifySlack('STARTED', '#FFFF00')
 
                 //소스를 컨테이너 안으로 복사
@@ -208,8 +207,6 @@ class PipelineLibraries implements Serializable {
 
                 //CI/CD 실행을 위한 변수 셋팅
                 setCICDVariables()
-
-                def skipStages = "${envVars.SKIP_STAGES}"  //건너 띌 스테이지 지정(sonar와 trivy skip가능)
 
                 try {
                     if (envVars.SERVICE_GROUP in [envVars.SERVICE_GROUP_SC, envVars.SERVICE_GROUP_SUBRIDE]) {
