@@ -307,7 +307,6 @@ class PipelineLibraries implements Serializable {
 
     //-- Build: 실행Jar파일 Build
     def buildJar() {
-        export CONFIG_SERVER_FQDN="config.43.200.12.214.nip.io"
         def buildDir = ''
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {
             buildDir = "${envVars.PROJECT_DIR}"
@@ -320,7 +319,10 @@ class PipelineLibraries implements Serializable {
 
             //실행 Jar 파일 빌드
             //script.sh "gradle :${buildDir}:build -x test"
-            script.sh "gradle clean :${buildDir}:build"
+            script.sh """
+                export CONFIG_SERVER_FQDN="config.43.200.12.214.nip.io"
+                gradle clean :${buildDir}:build
+            """
         }
     }
 
