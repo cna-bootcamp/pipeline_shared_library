@@ -320,7 +320,6 @@ class PipelineLibraries implements Serializable {
             //실행 Jar 파일 빌드
             //script.sh "gradle :${buildDir}:build -x test"
             script.sh """
-                export CONFIG_SERVER_FQDN="config.43.200.12.214.nip.io"
                 gradle clean :${buildDir}:build
             """
         }
