@@ -318,7 +318,8 @@ class PipelineLibraries implements Serializable {
             script.sh 'echo "Build jar under build directory"'
 
             //실행 Jar 파일 빌드
-            script.sh "gradle :${buildDir}:build -x test"
+            //script.sh "gradle :${buildDir}:build -x test"
+            script.sh "gradle clean :${buildDir}:build"
         }
     }
 
