@@ -363,7 +363,7 @@ class PipelineLibraries implements Serializable {
                             -Dsonar.projectName=${envVars.sonarProjectKey} \
                             -Dsonar.projectKey=${envVars.sonarProjectKey} \
                             -Dsonar.java.binaries=${javaBinaries} \
-                            -Dsonar.coverage.jacoco.xmlReportPaths=${jacocoReportDir} --debug
+                            -Dsonar.coverage.jacoco.xmlReportPaths=${jacocoReportDir} --info
                         """  
                 }
                 
