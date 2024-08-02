@@ -320,7 +320,7 @@ class PipelineLibraries implements Serializable {
             //실행 Jar 파일 빌드
             //script.sh "gradle :${buildDir}:build -x test"
             script.sh """
-                gradle clean :${buildDir}:build
+                gradle clean :${buildDir}:build -x test
             """
         }
     }
@@ -339,20 +339,34 @@ class PipelineLibraries implements Serializable {
     //-- Build: 소스품질 검사(Java)
     def sonarQubeAnalysisForJava() {
         def javaBinaries = ''
+        def jacocoReportDir = ''
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC || envVars.SERVICE_ID == 'transfer') {
             javaBinaries =  'build/classes/java/main'
+            jacocoReportDir = 'build/reports/jacoco/test/jacocoTestReport.xml'
         } else {
             javaBinaries = "${envVars.SUB_DIR_INFRA}/build/classes/java/main,${envVars.SUB_DIR_BIZ}/build/classes/java/main"
+            jacocoReportDir = "${envVars.SUB_DIR_INFRA}/build/reports/jacoco/test/jacocoTestReport.xml,${envVars.SUB_DIR_BIZ}/build/reports/jacoco/test/jacocoTestReport.xml"
         }
-
         script.container('gradle') {
             script.withSonarQubeEnv("${envVars.SONAR_SERVER_ID}") {
-                script.sh """
-                    gradle :${envVars.applicationName}:sonar \
-                        -Dsonar.projectName=${envVars.sonarProjectKey} \
-                        -Dsonar.projectKey=${envVars.sonarProjectKey} \
-                        -Dsonar.java.binaries=${javaBinaries}
-                """
+                if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SC) {
+                    script.sh """
+                        gradle :${envVars.applicationName}:sonar \
+                            -Dsonar.projectName=${envVars.sonarProjectKey} \
+                            -Dsonar.projectKey=${envVars.sonarProjectKey} \
+                            -Dsonar.java.binaries=${javaBinaries} 
+                        """
+                } else {
+                    script.sh """
+                        gradle :${envVars.applicationName}:clean :${envVars.applicationName}:test \
+                            :${envVars.applicationName}:jacocoTestReport :${envVars.applicationName}:sonar \
+                            -Dsonar.projectName=${envVars.sonarProjectKey} \
+                            -Dsonar.projectKey=${envVars.sonarProjectKey} \
+                            -Dsonar.java.binaries=${javaBinaries} \
+                            -Dsonar.coverage.jacoco.xmlReportPaths=${jacocoReportDir}
+                        """  
+                }
+                
             }
         }
     }
