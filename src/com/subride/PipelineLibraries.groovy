@@ -361,8 +361,7 @@ class PipelineLibraries implements Serializable {
                         """
                 } else {
                     script.sh """
-                        gradle :${prjName}:clean :${prjName}:test \
-                            :${prjName}:jacocoTestReport :${envVars.applicationName}:sonar \
+                        gradle :${prjName}:test :${prjName}:jacocoTestReport :${envVars.applicationName}:sonar \
                             -Dsonar.projectName=${envVars.sonarProjectKey} \
                             -Dsonar.projectKey=${envVars.sonarProjectKey} \
                             -Dsonar.java.binaries=${javaBinaries} \
