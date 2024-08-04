@@ -510,7 +510,7 @@ class PipelineLibrariesWithHelm implements Serializable {
     //-- Deploy: 배포
     def deploy() {
         script.container("helm") {
-            script.withCredentials([usernamePassword(
+            script.withCredentials([script.usernamePassword(
                 credentialsId: 'github_access_token',
                 usernameVariable: 'HELM_USERNAME',
                 passwordVariable: 'HELM_PASSWORD'
