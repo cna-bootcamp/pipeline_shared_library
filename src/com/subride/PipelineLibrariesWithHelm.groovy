@@ -274,6 +274,7 @@ class PipelineLibrariesWithHelm implements Serializable {
         envVars.imageScanSeverity = props['image_scan_severity']    //점검할 이미지 보안 취약성 등급(CRITICAL,HIGH,MEDIUM)
         envVars.sonarProjectKey = props['sonar_project_key']    //SonarQube에 생성한 project key(보통 service id와 동일)
         envVars.imagePath = "${envVars.IMAGE_REG_HOST}/${envVars.IMAGE_REG_ORG}/${envVars.applicationName}"
+        envVars.helmChartVersion = props['helm_chart_version'] 
 
         envVars.eurekaServiceUrl = 'http://eureka:18080/eureka/'        //Eureka 서버 Url
         if (envVars.SERVICE_GROUP == envVars.SERVICE_GROUP_SUBRIDE) {
@@ -520,7 +521,7 @@ class PipelineLibrariesWithHelm implements Serializable {
                     helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username "\${HELM_USERNAME}" --password "\${HELM_PASSWORD}"
                     helm repo update
 
-                    helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName} \
+                    helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName}:${envVars.helmChartVersion} \
                         --namespace ${envVars.namespace} \
                         --set image.repository=${envVars.imagePath} \
                         --set image.tag=${envVars.tag} 
