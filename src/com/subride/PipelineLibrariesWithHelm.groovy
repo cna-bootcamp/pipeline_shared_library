@@ -521,7 +521,7 @@ class PipelineLibrariesWithHelm implements Serializable {
                     helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username "\${HELM_USERNAME}" --password "\${HELM_PASSWORD}"
                     helm repo update
 
-                    helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName}:${envVars.helmChartVersion} \
+                    helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName} \
                         --namespace ${envVars.namespace} \
                         --set image.repository=${envVars.imagePath} \
                         --set image.tag=${envVars.tag} 
