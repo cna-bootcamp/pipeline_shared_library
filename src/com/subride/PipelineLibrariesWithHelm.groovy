@@ -515,12 +515,11 @@ class PipelineLibrariesWithHelm implements Serializable {
                 usernameVariable: 'HELM_USERNAME',
                 passwordVariable: 'HELM_PASSWORD'
             )]) {
-                // Add Helm repo
-                script.sh "helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username ${HELM_USERNAME} --password ${HELM_PASSWORD}"
-                script.sh "helm repo update"
-
-                // Install/Upgrade Helm chart
                 script.sh """
+                    echo username "\${HELM_USERNAME}" password "\${HELM_PASSWORD}"
+                    helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username \${HELM_USERNAME} --password \${HELM_PASSWORD}
+                    helm repo update
+
                     helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName} \
                         --namespace ${envVars.namespace} \
                         --set image.repository=${envVars.imagePath} \
