@@ -1,7 +1,6 @@
 package com.subride
 
 class CommonFunctions implements Serializable {
-
     def script
     def envVars = [:]
 
@@ -47,16 +46,6 @@ class CommonFunctions implements Serializable {
     def notifySlack(STATUS, COLOR) {
         // Implement Slack notification logic here
         // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
-    }
-
-    //-- image Tag를 동적으로 변경
-    def getImageTag() {
-        def dateFormat = new java.text.SimpleDateFormat('yyyyMMddHHmmss')
-        def currentDate = new Date()
-        def timestamp = dateFormat.format(currentDate)
-
-        //return timestamp
-        return envVars.SERVICE_VERSION      //현재는 버전을 리턴하나 실제 운영시에는 Timestamp를 리턴하게 변경 필요
     }
 
     //-- image vulnerability 결과를 파싱하여 심각도 레벨별 count를 구함
