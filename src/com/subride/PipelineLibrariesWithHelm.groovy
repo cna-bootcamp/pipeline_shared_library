@@ -517,7 +517,8 @@ class PipelineLibrariesWithHelm implements Serializable {
             )]) {
                 script.sh """
                     echo username "\${HELM_USERNAME}" password "\${HELM_PASSWORD}"
-                    helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username "\${HELM_USERNAME}" --password "\${HELM_PASSWORD}"
+                    #helm repo add subride https://cna-bootcamp.github.io/helm-charts/stable --username "\${HELM_USERNAME}" --password "\${HELM_PASSWORD}"
+                    helm repo add subride https://raw.githubusercontent.com/cna-bootcamp/helm-charts/main/stable --username "\${HELM_USERNAME}" --password "\${HELM_PASSWORD}"
                     helm repo update
 
                     helm upgrade --install ${envVars.applicationName} -f ${envVars.deployYamlDir}/value.yaml subride/${envVars.applicationName} \
