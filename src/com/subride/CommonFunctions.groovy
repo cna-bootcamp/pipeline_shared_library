@@ -48,6 +48,15 @@ class CommonFunctions implements Serializable {
         // script.slackSend(channel: '#cicd', color: COLOR, message: STATUS + " : " + "${script.env.JOB_NAME} [${script.env.BUILD_NUMBER}] (${script.env.BUILD_URL})")
     }
 
+    //-- image Tag를 동적으로 변경
+    def getImageTag() {
+        def dateFormat = new java.text.SimpleDateFormat('yyyyMMddHHmmss')
+        def currentDate = new Date()
+        def timestamp = dateFormat.format(currentDate)
+
+        return timestamp
+    }
+    
     //-- image vulnerability 결과를 파싱하여 심각도 레벨별 count를 구함
     def getVulnerabilityResult(trivyOutput) {
         def vulnerabilityCounts = [:]
